@@ -389,34 +389,34 @@ function setup_source_dirs()
 	fi
 
 	# declare sources list
-	hostfiles_fullpaths_list=( \
+	hostfiles_fullpaths_list=(
 	# host-specific dirs
-	"${my_homedir}/research" \
-	"${my_homedir}/secure" \
-	"${my_homedir}/Downloads" \
+	"${my_homedir}/research"
+	"${my_homedir}/secure"
+	"${my_homedir}/Downloads"
 	# global configs
-	"/etc" \
-	"/var/www" \
-	"/var/log/syslog" \
-	"${my_homedir}/.ssh/config" \
-	"${my_homedir}/.config" \
-	"/usr/lib/node_modules/npm/package.json" \
-	"/usr/lib/node_modules/eslint/package.json" \
-	# vscode workspace configs... \
-	"${my_homedir}/Documents/businesses/tech_business/workspaces" \
-	"${my_homedir}/bin/workspaces" \
-	"${my_homedir}/Code/workspaces" \
-	# git managed source code AND configs... \
-	"${my_homedir}/bin/utils/audit-list-maker" \
-	"${my_homedir}/bin/utils/decoder_converter" \
-	"${my_homedir}/bin/utils/encryption-services" \
-	"${my_homedir}/bin/utils/file-management-shell-scripts" \
-	"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects" \
-	"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io" \
-	"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser" \
-	"${my_homedir}/.gitconfig" \
-	#"/cronjob configs..." \
-	"${my_homedir}/temp_root_cronfile" \
+	"/etc"
+	"/var/www"
+	"/var/log/syslog"
+	"${my_homedir}/.ssh/config"
+	"${my_homedir}/.config"
+	"/usr/lib/node_modules/npm/package.json"
+	"/usr/lib/node_modules/eslint/package.json"
+	# vscode workspace configs...
+	"${my_homedir}/Documents/businesses/tech_business/workspaces"
+	"${my_homedir}/bin/workspaces"
+	"${my_homedir}/Code/workspaces"
+	# git managed source code AND configs...
+	"${my_homedir}/bin/utils/audit-list-maker"
+	"${my_homedir}/bin/utils/decoder_converter"
+	"${my_homedir}/bin/utils/encryption-services"
+	"${my_homedir}/bin/utils/file-management-shell-scripts"
+	"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
+	"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
+	"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
+	"${my_homedir}/.gitconfig"
+	#"/cronjob configs..."
+	"${my_homedir}/temp_root_cronfile"
 	"${my_homedir}/temp_user_cronfile"
 	)
 	
