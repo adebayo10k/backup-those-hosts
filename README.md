@@ -11,9 +11,9 @@ My synchronisation, encryption and backup routine.
 
 
 
-**Typical use case for host-config-backup.sh:**
+**Typical use for host-config-backup.sh:**
 
-Backup changes to configuration to location from which they can be synchronised and then archived safely to ensure Availability. 
+Backup host configuration files to single location from which they can be synchronised and then archived safely to ensure Availability. 
 
 ---
 
