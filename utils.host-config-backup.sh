@@ -19,9 +19,6 @@
 # This program is only concerned with getting current copies of these files into sync-ready position \
 # on respective hosts. That's it. CRON makes this happen frequently (few times per day)
 
-# This program need only be run manually, on each host (perhaps via ssh)\
-#+ on an ad-hoc (when changes are made) basis
-
 # If the program is being run as a root cronjob, $0 will be the local git repository, otherwise \
 # if run directly will be the symlink in ~/bin. The program branches based on whether interactive shell. \
 # Also, when called by a root cronjob, it needs program parameters for:
@@ -149,12 +146,6 @@ function main
 
 
 	###############################################################################################
-
-	# TODO: SANITISE CODE BY GPG ENCRYPTING A FILE THAT CONTAINS ECRYPT MOUNT PARAMETERS\
-	# DECRYPT AND bash -c $command FILE LINES ? 
-	# AS NOT SAFE TO HARD CODE ECRYPT MOUNT PARAMETERS 
-
-	###############################################################################################
 	# TODO: remember to a cron configuration files to list
 
 	###############################################################################################
@@ -208,7 +199,7 @@ function get_user_inputs
 	if [ -n "$destination_holding_dir_fullpath" ] 
 	then
 		sanitise_absolute_path_value "$destination_holding_dir_fullpath"
-		echo "test_line has the value: $test_line"
+		#echo "test_line has the value: $test_line"
 		destination_holding_dir_fullpath=$test_line
 
 		# this valid form test works for sanitised directory paths
@@ -237,13 +228,13 @@ function get_user_inputs
 function sanitise_absolute_path_value ##
 {
 
-echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
 	# sanitise values
 	# - trim leading and trailing space characters
 	# - trim trailing / for all paths
 	test_line="${1}"
-	echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
+	#echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
 
 	while [[ "$test_line" == *'/' ]] ||\
 	 [[ "$test_line" == *[[:blank:]] ]] ||\
@@ -259,9 +250,9 @@ echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 		test_line=${test_line%'/'}
 	done
 
-	echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line" && echo
+	#echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line" && echo
 
-echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 
 }
 ##########################################################################################################
@@ -270,14 +261,14 @@ echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 function sanitise_relative_path_value
 {
 
-echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
 	# sanitise values
 	# - trim leading and trailing space characters
 	# - trim leading / for relative paths
 	# - trim trailing / for all paths
 	test_line="${1}"
-	echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
+	#echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
 
 	while [[ "$test_line" == *'/' ]] ||\
 	 [[ "$test_line" == [[:blank:]]* ]] ||\
@@ -297,9 +288,9 @@ echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 	# afer this, test_line should just be the directory name
 	test_line=${test_line##'/'}
 
-	echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line" && echo
+	#echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line"
 
-echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 
 }
 
@@ -411,9 +402,9 @@ function setup_source_dirs()
 	"${my_homedir}/bin/utils/decoder_converter"
 	"${my_homedir}/bin/utils/encryption-services"
 	"${my_homedir}/bin/utils/file-management-shell-scripts"
-	#"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
-	#"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
-	#"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
+	"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
+	"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
+	"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
 	"${my_homedir}/.gitconfig"
 	#"/cronjob configs..."
 	"${my_homedir}/temp_root_cronfile"
@@ -460,7 +451,7 @@ function traverse() {
 	do
 	    # sanitise copy of file to make it ready for appending as a regular file
 		sanitise_relative_path_value "${file}"
-		echo "test_line has the value: $test_line"
+		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
 		#
@@ -476,7 +467,8 @@ function traverse() {
 	    else # 
 			# skip over excluded subdirectories
 			# TODO: exlude .git dirs completely. after all, this is a git-independent backup!
-			if [[ $file =~ '.config/Code' ]]; then
+			if  [ -z "$(ls -A $file)" ] || [[ $file =~ '.config/Code' ]] # || [[ $file =~ '.git/objects' ]] 
+			then
 				echo "Skipping excluded dir: $file"
 				continue
 			fi
@@ -500,14 +492,14 @@ function backup_regulars_and_dirs()
 	do
 		# sanitise file to make it ready for appending
 		sanitise_relative_path_value "${file}"
-		echo "test_line has the value: $test_line"
+		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
 		#
 		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
 
 		# if source directory is not empty...
-		if [ -d $file ] && [ "$(ls $file)" ]
+		if [ -d $file ] && [ -n "$(ls -A $file)" ]
 		then
 			## give user some progress feedback
 			echo "Copying dir $file ..." && traverse $file
@@ -539,9 +531,9 @@ function backup_regulars_and_dirs()
 }
 
 ###############################################################################################
-# reduce the privilege level of all backup dir contents.
-# why? reg user doesn't need to access them, and we've got sudo tar if needed
-# preserving ownership etc. might have more fidelity
+# chown (but not chmod) privilege level of all backup dir contents.
+# why? reg user doesn't need to access them, and we've got sudo tar if needed.
+# preserving ownership etc. might also have more fidelity, and enable any restore operations.
 function change_file_ownerships()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
@@ -612,12 +604,12 @@ function verify_and_validate_program_arguments()
 			echo "ALL_THE_PARAMETERS_ARRAY[2]: ${ALL_THE_PARAMETERS_ARRAY[2]}"
 			# sanitise_program_args
 			sanitise_absolute_path_value "${ALL_THE_PARAMETERS_ARRAY[1]}"
-			echo "test_line has the value: $test_line"
+			#echo "test_line has the value: $test_line"
 			ALL_THE_PARAMETERS_ARRAY[1]=$test_line
 
 			# sanitise my_username
 			sanitise_relative_path_value "${ALL_THE_PARAMETERS_ARRAY[0]}"
-			echo "test_line has the value: $test_line"
+			#echo "test_line has the value: $test_line"
 			ALL_THE_PARAMETERS_ARRAY[0]=$test_line
 			
 			# validate_program_args
@@ -703,7 +695,7 @@ function display_program_header(){
 	echo "Script root directory set to:		$(dirname $0)"
 	echo "Script filename set to:			$(basename $0)" && echo
 
-	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 2 && echo
+	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
 		
 }
 
