@@ -379,7 +379,8 @@ function setup_source_dirs()
 		echo "$(crontab -u ${my_username} -l 2>/dev/null)" > "${my_homedir}/temp_user_cronfile"
 	fi
 
-	# declare sources list
+
+	# declare sources list here UNTIL JSON CONFIGURATION
 	hostfiles_fullpaths_list=(
 	# host-specific dirs
 	"${my_homedir}/research"
@@ -398,10 +399,7 @@ function setup_source_dirs()
 	"${my_homedir}/bin/workspaces"
 	"${my_homedir}/Code/workspaces"
 	# git managed source code AND configs...
-	"${my_homedir}/bin/utils/audit-list-maker"
-	"${my_homedir}/bin/utils/decoder_converter"
-	"${my_homedir}/bin/utils/encryption-services"
-	"${my_homedir}/bin/utils/file-management-shell-scripts"
+	"${my_homedir}/bin/utils"
 	"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
 	"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
 	"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
