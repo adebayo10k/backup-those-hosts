@@ -202,7 +202,7 @@ function get_user_inputs
 	echo "Enter the full path to the destination directory:"
 	echo "Copy-paste your choice" && echo
 	echo && sleep 1
-	sudo find ~ -type d -name "*_host_specific_files_current" && echo # temporary dev shortcut
+	sudo find ~ -type d -name "*_host_specific_files_current" && echo # temporary dev workaound
 	read destination_holding_dir_fullpath
 
 	if [ -n "$destination_holding_dir_fullpath" ] 
@@ -411,9 +411,9 @@ function setup_source_dirs()
 	"${my_homedir}/bin/utils/decoder_converter"
 	"${my_homedir}/bin/utils/encryption-services"
 	"${my_homedir}/bin/utils/file-management-shell-scripts"
-	"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
-	"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
-	"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
+	#"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
+	#"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
+	#"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
 	"${my_homedir}/.gitconfig"
 	#"/cronjob configs..."
 	"${my_homedir}/temp_root_cronfile"
