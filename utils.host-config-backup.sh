@@ -105,7 +105,7 @@ function main
 	if [[ $(declare -a | grep "authorised_host_list" 2>/dev/null) ]]; then
 		entry_test
 	else
-		echo "entry test skipped..." && sleep 2 && echo
+		echo "entry test skipped..." && sleep 1 && echo
 	fi
 	
 	###############################################################################################
@@ -202,7 +202,7 @@ function get_user_inputs
 	echo "Enter the full path to the destination directory:"
 	echo "Copy-paste your choice" && echo
 	echo && sleep 1
-	sudo find ~ -type d -name "*_host_specific_files_current" && echo # temporary dev workaound
+	find ~ -type d -name "*_host_specific_files_current" && echo # temporary dev workaound
 	read destination_holding_dir_fullpath
 
 	if [ -n "$destination_holding_dir_fullpath" ] 
@@ -451,6 +451,40 @@ function setup_dst_dir()
 	
 }
 
+############################################################################################
+# called for each directory in the list
+function traverse() {
+	date_label=$(date +'%F')
+	
+	for file in "$1"/*
+	do
+	    # sanitise copy of file to make it ready for appending as a regular file
+		sanitise_relative_path_value "${file}"
+		echo "test_line has the value: $test_line"
+		rel_filepath=$test_line
+
+		#
+		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
+		
+		if [ ! -d "${file}" ] && [ $USER_PRIV == "reg" ]; then
+			sudo cp -p "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+
+		elif [ ! -d "${file}" ] && [ $USER_PRIV == "root" ]; then
+			cp -p "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+
+	    else # 
+			# skip over excluded subdirectories
+			# TODO: exlude .git dirs completely. after all, this is a git-independent backup!
+			if [[ $file =~ '.config/Code' ]]; then
+				echo "Skipping excluded dir: $file"
+				continue
+			fi
+	        echo "entering recursion with: ${file}"
+	        traverse "${file}"
+	    fi
+	done
+}
+
 ###############################################################################################
 function backup_regulars_and_dirs()
 {
@@ -460,60 +494,46 @@ function backup_regulars_and_dirs()
 	
 	date_label=$(date +'%F')
 
-	# copy all sources into dst
+	# copy sparse sources into dst
 	for file in ${hostfiles_fullpaths_list[@]}
 	do
-		filename="$(basename $file)"
-		if [ -d $file ]
-		then
-			# if source directory is not empty...
-			# TODO: perhaps a directory traversal would suit here so all files are renamed. 
-			# TODO: exlude .git dirs completely. after all, this is a git-independent backup!
-			
-			# USER_PRIV (reg or root) branching:
-			if [ $USER_PRIV == "reg" ]
-			then
-				# give some user progress feedback
-				[ "$(ls $file)" ] && echo "Copying $file ..." && \
-				# preserve file metadata during copy
-				sudo cp -Rp $file "${destination_holding_dir_fullpath}/${filename}.bak.${date_label}"
-			else
-				[ "$(ls $file)" ] && \			
-				cp -Rp $file "${destination_holding_dir_fullpath}/${filename}.bak.${date_label}"
-			fi
-			
-		elif [ -f $file ]
-		then
-			# USER_PRIV (reg or root) branching:
-			if [ $USER_PRIV == "reg" ]
-			then
-				# give some user progress feedback
-				echo "Copying $file ..."
-				# preserve file metadata during copy
-				sudo cp -p $file "${destination_holding_dir_fullpath}/${filename}.bak.${date_label}"
+		# sanitise file to make it ready for appending
+		sanitise_relative_path_value "${file}"
+		echo "test_line has the value: $test_line"
+		rel_filepath=$test_line
+		
+		#
+		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
 
-			else
-				cp -p $file "${destination_holding_dir_fullpath}/${filename}.bak.${date_label}"
-			fi
-			
+		# if source directory is not empty...
+		if [ -d $file ] && [ "$(ls $file)" ]
+		then
+			## give user some progress feedback
+			echo "Copying dir $file ..." && traverse $file
+		elif [ -f $file ] && [ $USER_PRIV == "reg" ]
+		then
+			# give some user progress feedback
+			echo "Copying file $file ..."
+			# preserve file metadata during copy
+			sudo cp -p $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+		elif [ -f $file ] && [ $USER_PRIV == "root" ]
+		then
+			# give some user progress feedback
+			echo "Copying file $file ..."
+			# preserve file metadata during copy
+			cp -p $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 		else
 			# failsafe
 			echo "Entered the failsafe"
 			echo "NO FILE EXISTS on this host for:"
 			echo $file && echo
 		fi
+
 	done
 
 	# delete those temporary crontab -l output files
 	rm -fv "${my_homedir}/temp_root_cronfile" "${my_homedir}/temp_user_cronfile"
-	# USER_PRIV (reg or root) branching:
-	#if [ $USER_PRIV == "reg" ]
-	#then
-	#	:
-	#else
-	#	:
-	#fi
-
+	
 	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
 
 }
