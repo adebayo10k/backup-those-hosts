@@ -467,10 +467,11 @@ function traverse() {
 		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
 		
 		if [ ! -d "${file}" ] && [ $USER_PRIV == "reg" ]; then
-			sudo cp -p "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			# preserve file metadata, never follow symlinks during copy
+			sudo cp -Pp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 
 		elif [ ! -d "${file}" ] && [ $USER_PRIV == "root" ]; then
-			cp -p "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			cp -Pp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 
 	    else # 
 			# skip over excluded subdirectories
@@ -501,7 +502,7 @@ function backup_regulars_and_dirs()
 		sanitise_relative_path_value "${file}"
 		echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
-		
+
 		#
 		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
 
@@ -514,14 +515,13 @@ function backup_regulars_and_dirs()
 		then
 			# give some user progress feedback
 			echo "Copying file $file ..."
-			# preserve file metadata during copy
-			sudo cp -p $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			# preserve file metadata, never follow symlinks during copy
+			sudo cp -Pp $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 		elif [ -f $file ] && [ $USER_PRIV == "root" ]
 		then
 			# give some user progress feedback
 			echo "Copying file $file ..."
-			# preserve file metadata during copy
-			cp -p $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			cp -Pp $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 		else
 			# failsafe
 			echo "Entered the failsafe"
