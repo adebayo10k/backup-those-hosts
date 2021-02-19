@@ -50,6 +50,8 @@ function main
 	E_REQUIRED_PROGRAM_NOT_FOUND=21
 	E_UNKNOWN_RUN_MODE=30
 	E_UNKNOWN_EXECUTION_MODE=31
+	E_FILE_NOT_ACCESSIBLE=40
+
 
 	export E_UNEXPECTED_BRANCH_ENTERED
 	export E_OUT_OF_BOUNDS_BRANCH_ENTERED
@@ -59,6 +61,8 @@ function main
 	export E_REQUIRED_PROGRAM_NOT_FOUND
 	export E_UNKNOWN_RUN_MODE
 	export E_UNKNOWN_EXECUTION_MODE
+	export E_FILE_NOT_ACCESSIBLE
+
 
 	#######################################################################
 	program_param_0=${1:-"not_yet_set"} ## 
@@ -154,7 +158,7 @@ function main
 
 	setup_dst_dir
 
-	#exit # debug
+	#exit 0 # debug
 
 	backup_regulars_and_dirs
 
@@ -331,7 +335,7 @@ function test_file_path_valid_form
 }
 
 ###############################################################################################
-# need to test for access to the file holding directory
+# generic need to test for access to a directory
 # 
 function test_dir_path_access
 {
@@ -425,24 +429,41 @@ function setup_dst_dir()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	echo $destination_holding_dir_fullpath
+	echo "dst dir: $destination_holding_dir_fullpath"
 
-	if [ -d $destination_holding_dir_fullpath ]
-	then	
-		rm -rf $destination_holding_dir_fullpath && mkdir $destination_holding_dir_fullpath
+	# test exists and accessible
+	test_dir_path_access "$destination_holding_dir_fullpath"
+	return_code=$?
+	if [ $return_code -eq 0 ]
+	then
+		echo "The full path EXISTS and WORKS OK" && echo
+	elif [ $return_code -eq $E_REQUIRED_FILE_NOT_FOUND ]
+	then
+		echo "The HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
+		echo "Creating the directory now..." && echo
+		mkdir "$destination_holding_dir_fullpath"
 	else
-		mkdir $destination_holding_dir_fullpath
+		echo "The DIRECTORY path access test FAILED and returned: $return_code"
+		echo "Nothing to do now, but to exit..." && echo
+		exit $E_FILE_NOT_ACCESSIBLE
 	fi
 
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+	#if [ -d $destination_holding_dir_fullpath ]
+	#then	
+	#	rm -rf $destination_holding_dir_fullpath && mkdir $destination_holding_dir_fullpath
+	#else
+	#	mkdir $destination_holding_dir_fullpath
+	#fi
 	
 	# USER_PRIV (reg or root) branching: TODO: SHOULD BE MODE: INTERACTIVE | NON-INTERACTIVE
 	if [ $USER_PRIV == "reg" ]
 	then
-		echo "NOTICE: Now is a good time to tidy up the ~/Downloads directory. I'll wait here."
+		echo "NOTICE: Now is a good time to tidy up the ~/Downloads directory. I'll wait here." && echo
 		echo "Press ENTER when ready to continue..." && read
 	fi
 	
+	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+
 }
 
 ############################################################################################
@@ -462,14 +483,14 @@ function traverse() {
 		
 		# how does the order of these tests affect performance?
 		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ $USER_PRIV == "reg" ]; then
-			# preserve file metadata, never follow symlinks during copy
+			# preserve file metadata, never follow symlinks, update copy if necessary
 			# give some user progress feedback
-			echo "Copying file $file ..."
-			sudo cp -Pp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			#echo "Copying file $file ..."
+			sudo cp -uvPp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}"
 
 		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $USER_PRIV == "root" ]; then
-			echo "Copying file $file ..."
-			cp -Pp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			#echo "Copying file $file ..."
+			cp -uvPp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}"
 
 		# if  file is a symlink, reject (irrespective of USER_PRIV)
 		elif [ -h "${file}" ]; then
@@ -524,14 +545,14 @@ function backup_regulars_and_dirs()
 		elif [ -f $file ] && [ $USER_PRIV == "reg" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
-			echo "Copying file $file ..."
-			# preserve file metadata, never follow symlinks during copy
-			sudo cp -Pp $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			echo "Copying top level file $file ..."
+			# preserve file metadata, never follow symlinks, update copy if necessary
+			sudo cp -uvPp $file "${destination_holding_dir_fullpath}/${rel_filepath}"
 		elif [ -f $file ] && [ $USER_PRIV == "root" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
-			echo "Copying file $file ..."
-			cp -Pp $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+			echo "Copying top level file $file ..."
+			cp -uvPp $file "${destination_holding_dir_fullpath}/${rel_filepath}"
 		elif  [ -h "${file}" ]
 		then
 			echo "Skipping symbolic link in configuration list..."
@@ -708,7 +729,7 @@ function display_program_header(){
 
 	echo
 	echo -e "		\033[33m===================================================================\033[0m";
-	echo -e "		\033[33m||         Welcome to the host-specific file backuper         ||  author: adebayo10k\033[0m";  
+	echo -e "		\033[33m||   Welcome to the host-specific configuration file backuper    ||  author: adebayo10k\033[0m";  
 	echo -e "		\033[33m===================================================================\033[0m";
 	echo
 
