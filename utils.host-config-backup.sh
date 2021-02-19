@@ -24,9 +24,9 @@
 # Also, when called by a root cronjob, it needs program parameters for:
 	# regular username
 	# destination_holding_dir_fullpath
-# 
+# on bash:
 # m h  dom mon dow   command
-# */10 * * * * /path/to/git/managed/host-config-backup.sh "my_username" "/dest/dir"
+# */10 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh "my_username" "/dest/dir"
 
 # Needs to run as root to get access to those global configuration files
 # adjust file permissions and ownerships
@@ -86,7 +86,7 @@ function main
 	# this list is the superset of lists of each host - if file doesn't exist, just ignored.
 	declare -a hostfiles_fullpaths_list=()	
 
-
+	#echo "program:" && echo "$0" && exit 0 # debug
 	
 	###############################################################################################
 
@@ -190,10 +190,15 @@ function get_user_inputs
 		exit $E_UNEXPECTED_ARG_VALUE
 	fi
 
-	echo "Enter the full path to the destination directory:"
-	echo "Copy-paste your choice" && echo
-	echo && sleep 1
-	find ~ -type d -name "*_host_specific_files_current" && echo # temporary dev workaound
+	echo "Enter (copy-paste) the full path to the destination directory:"
+	echo && echo
+
+	# temporary development workaound for interactive regular user
+	# this should really just be configured, 
+	# perhaps should be EARLY user confirmation of ALL configured params like this?
+	find ~/Documents/businesses -type d -name "*_host_specific_files_current" && echo 
+
+	echo && echo
 	read destination_holding_dir_fullpath
 
 	if [ -n "$destination_holding_dir_fullpath" ] 
@@ -452,17 +457,26 @@ function traverse() {
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
-		#
+		# happens for the first only (TODO: test this with a debug echo!)
 		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
 		
-		if [ ! -d "${file}" ] && [ $USER_PRIV == "reg" ]; then
+		# how does the order of these tests affect performance?
+		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ $USER_PRIV == "reg" ]; then
 			# preserve file metadata, never follow symlinks during copy
+			# give some user progress feedback
+			echo "Copying file $file ..."
 			sudo cp -Pp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 
-		elif [ ! -d "${file}" ] && [ $USER_PRIV == "root" ]; then
+		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $USER_PRIV == "root" ]; then
+			echo "Copying file $file ..."
 			cp -Pp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
 
-	    else # 
+		# if  file is a symlink, reject (irrespective of USER_PRIV)
+		elif [ -h "${file}" ]; then
+			echo "Skipping symlink file: $file ..."
+			continue 
+
+	    elif [ -d "${file}" ]; then # file must be a directory to have arrived here, but check anyway.
 			# skip over excluded subdirectories
 			# TODO: exlude .git dirs completely. after all, this is a git-independent backup!
 			if  [ -z "$(ls -A $file)" ] || [[ $file =~ '.config/Code' ]] # || [[ $file =~ '.git/objects' ]] 
@@ -470,8 +484,14 @@ function traverse() {
 				echo "Skipping excluded dir: $file"
 				continue
 			fi
+			# enter recursion with a non-empty directory
 	        echo "entering recursion with: ${file}"
 	        traverse "${file}"
+		else
+			# failsafe condition
+			echo "FAILSAFE BRANCH ENTERED!! WE SHOULD NOT BE HERE!!"
+			echo "WEIRD FILE EXISTS on this host for:"
+			echo $file && echo
 	    fi
 	done
 }
@@ -493,7 +513,7 @@ function backup_regulars_and_dirs()
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
-		#
+		# happens for the first only (TODO: test this with a debug echo!)
 		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
 
 		# if source directory is not empty...
@@ -501,21 +521,25 @@ function backup_regulars_and_dirs()
 		then
 			## give user some progress feedback
 			echo "Copying dir $file ..." && traverse $file
-		elif [ -f $file ] && [ $USER_PRIV == "reg" ]
+		elif [ -f $file ] && [ $USER_PRIV == "reg" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying file $file ..."
 			# preserve file metadata, never follow symlinks during copy
 			sudo cp -Pp $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
-		elif [ -f $file ] && [ $USER_PRIV == "root" ]
+		elif [ -f $file ] && [ $USER_PRIV == "root" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying file $file ..."
 			cp -Pp $file "${destination_holding_dir_fullpath}/${rel_filepath}.bak.${date_label}"
+		elif  [ -h "${file}" ]
+		then
+			echo "Skipping symbolic link in configuration list..."
+			continue
 		else
 			# failsafe
 			echo "Entered the failsafe"
-			echo "NO FILE EXISTS on this host for:"
+			echo "WEIRD FILE EXISTS on this host for:"
 			echo $file && echo
 		fi
 
