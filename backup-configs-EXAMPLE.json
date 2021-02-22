@@ -1,0 +1,61 @@
+{  
+  "hosts": [
+    {
+      "hostname" : "desktop-001",
+      "dst_backup_dir_external" : "/media/user/external_storage/desktop-001_files_current",
+      "dst_backup_dir_local" : "$HOME/path/to/my/backup/dir/desktop-001_files_current"
+    },
+    {
+      "hostname" : "laptop-001",
+      "dst_backup_dir_external" : "/media/user/external_storage/laptop-001_files_current",
+      "dst_backup_dir_local" : "$HOME/path/to/my/backup/dir/laptop-001_files_current"
+    }
+  ],  
+  "backup_schemes" : [
+    {
+      "backup_type" : "host_configuration_files_backups",
+      "backup_description" : "Host-specific files and directories, like configuration, home, Downloads and others",
+      "authorised_hostnames" : [
+        "desktop-001",
+        "laptop-001"
+      ],
+      "regular_user" : "user",
+      "regular_user_home_dir" : "/home/user",
+      "src_files_fullpaths" : [
+        "$HOME/Downloads",
+  	    "/etc",
+  	    "$HOME/.ssh/config",
+  	    "$HOME/.config",
+  	    "/usr/lib/node_modules/npm/package.json",
+  	    "/usr/lib/node_modules/eslint/package.json",
+  	    "$HOME/.gitconfig",
+  	    "$HOME/temp_root_cronfile",
+  	    "$HOME/temp_user_cronfile"
+      ],
+      "excluded_files_fullpaths" : [
+        "$HOME/.config/Code"
+      ]          
+    },  
+    {
+      "backup_type" : "belt-and-braces_file_backups",
+      "backup_description" : "Git managed files, just in case cloud says \"no\". ",
+      "authorised_hostnames" : [
+        "desktop-001",
+        "laptop-001"
+      ],
+      "regular_user" : "user",
+      "regular_user_home_dir" : "/home/user",
+      "src_files_fullpaths" : [
+        "$HOME/bin/git-project-001",
+  	    "$HOME/path/to/my/projects/git-project-002",
+  	    "$HOME/path/to/my/projects/adebayo10k.github.io",
+  	    "$HOME/path/to/my/projects/git-project-003"
+      ],
+      "excluded_files_fullpaths" : [
+        "*.git"
+      ]
+    }
+  ]
+}
+  
+
