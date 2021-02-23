@@ -60,40 +60,47 @@ function main
 	export E_FILE_NOT_ACCESSIBLE=40
 
 	#######################################################################
-	PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
+	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
 
 	MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=1
 	ACTUAL_NO_OF_PROGRAM_PARAMETERS=$#
 	ALL_THE_PARAMETERS_STRING="$@"
-
-
-	CONFIG_FILE_FULLPATH=""
 	
 	my_username=""
 	my_homedir=""
 	test_line="" # global...
 
-	# establish the script RUN_MODE using whoami command.
-	if [ $(whoami) == "root" ]
-	then
-		RUN_MODE="batch"
-	else
-		RUN_MODE="interactive"
-	fi
+	
 	
 	abs_filepath_regex='^(/{1}[A-Za-z0-9\.\ _~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
 	all_filepath_regex='^(/?[A-Za-z0-9\.\ _~:@-]+)+(/)?$' # both relative and absolute file path
 
 	# TODO: host info for entry test removed until json config sorted
 
-	ACTUAL_HOST=$(hostname)	
+	declare -r ACTUAL_HOST=$(hostname)	
 
 	# array of absolute paths to host-specific directory and regular file (mostly configuration files) sources
 	# this list is the superset of lists of each host - if file doesn't exist, just ignored.
-	declare -a hostfiles_fullpaths_list=()	
+	declare -a hostfiles_fullpaths_list=()
 
+	
+	
+	###############################################################################################
 
-	LOG_FILE="/home/damola/crontest.txt"
+	###############################################################################################
+	# 'SHOW STOPPER' FUNCTION CALLS:	
+	###############################################################################################
+
+	# establish the script RUN_MODE using whoami command.
+	if [ $(whoami) == "root" ]
+	then
+		declare -r RUN_MODE="batch"
+		#make_root_safe by making
+	else
+		declare -r RUN_MODE="interactive"
+	fi
+
+	declare -r LOG_FILE="/home/damola/crontest.txt"
 	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
 	echo > "$LOG_FILE"
 	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
@@ -105,12 +112,6 @@ function main
 	echo $(pwd) >> "$LOG_FILE"
 	echo "RUN_MODE: $RUN_MODE" >> "$LOG_FILE" # debug
 	#exit 0 # debug
-	
-	###############################################################################################
-
-	###############################################################################################
-	# 'SHOW STOPPER' FUNCTION CALLS:	
-	###############################################################################################
 
 	# count, cleanup and validate, test program positional parameters
 	cleanup_and_validate_program_arguments
@@ -191,7 +192,18 @@ function main
 ###############################################################################################
 ####  FUNCTION DECLARATIONS  
 ###############################################################################################
+###########
+function usage() {
+  echo "please install docker, psql, jq, and curl"
+  exit 1
+}
 
+## check requirements
+#for libName in docker psql jq curl; do
+#  which $libName > $DEVNULL || usage
+#done
+
+###############################################################################################
 # exit program with non-zero exit code
 function exit_with_error()
 {
@@ -203,7 +215,7 @@ function exit_with_error()
 	then
 		echo "EXIT CODE: $error_code"		
 		echo "$error_message" && echo && sleep 1
-		echo "USAGE: $(basename $0) [<absolute file path>...]+" && echo && sleep 1
+		echo "USAGE: $(basename $0) [ABSOLUTE PATH TO CONFIGURATION FILE]?" && echo && sleep 1
 
 	else
 		echo "EXIT CODE: $error_code" >> "$LOG_FILE"
@@ -220,8 +232,6 @@ function exit_with_error()
 function cleanup_and_validate_program_arguments()
 {
 
-	#echo "USAGE: $(basename $0).sh [FULLPATH TO CONFIGURATION FILE]"
-
 	# establish that number of parameters is valid
 	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -le 1 ]
 	then
@@ -231,11 +241,32 @@ function cleanup_and_validate_program_arguments()
 			# sanitise_program_args
 			sanitise_absolute_path_value "$PROGRAM_PARAM_1"
 			echo "test_line has the value: $test_line"
-			PROGRAM_PARAM_1=$test_line
+			PROGRAM_PARAM_TRIMMED=$test_line
 			
-			# TODO: validate_program_args.. test dir
+			# this valid form test works for sanitised file paths
+			test_file_path_valid_form "$PROGRAM_PARAM_TRIMMED"
+			return_code=$?
+			if [ $return_code -eq 0 ]
+			then
+				echo "The configuration filename is of VALID FORM"
+			else
+				msg="The valid form test FAILED and returned: $return_code. Exiting now..."
+				exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
+			fi
+
+			# if the above test returns ok, ...
+			test_file_path_access "$PROGRAM_PARAM_TRIMMED"
+			return_code=$?
+			if [ $return_code -eq 0 ]
+			then
+				echo "The configuration file is ACCESSIBLE OK"
+				declare -r CONFIG_FILE_FULLPATH="$PROGRAM_PARAM_TRIMMED"
+			else
+				msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
+				exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
+			fi
 		else
-			# zero params case
+			# zero params case  # debug
 			echo "zero program parameter case ok" && echo # debug
 			echo "USAGE: $(basename $0) [ FULLPATH TO CONFIGURATION FILE]" && echo # debug
 		fi
@@ -248,7 +279,7 @@ function cleanup_and_validate_program_arguments()
 	# only the regular user can call using zero parameters as in an interactive shell
 	# the root user is non-interactive, so must provide exactly one parameter
 
-	echo "$RUN_MODE"
+	echo "RUN_MODE: $RUN_MODE"
 	echo "no of params: $ACTUAL_NO_OF_PROGRAM_PARAMETERS"
 
 	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "batch" ]
@@ -260,8 +291,9 @@ function cleanup_and_validate_program_arguments()
 	then
 		# this script was called by regular user, with zero parameters
 		
-		get_user_inputs # path to the configuration file
+		get_user_inputs # get path to the configuration file from user
 
+	# next 2 conditions are just for debugging- delete or move
 	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ] && [ $RUN_MODE == "batch" ]
 	then
 		# GOOD USER.
@@ -270,7 +302,6 @@ function cleanup_and_validate_program_arguments()
 		# script was called during a root cronjob, with one parameter. we ARE root!
 		# config file will tell us which regular users' configuration to deal with
 		
-		CONFIG_FILE_FULLPATH="${PROGRAM_PARAM_1}"
 		echo "${HOME} $(date)" >> "$LOG_FILE" # debug
 		echo "CONFIG_FILE_FULLPATH: $CONFIG_FILE_FULLPATH" >> "$LOG_FILE" # debug		
 
@@ -279,13 +310,12 @@ function cleanup_and_validate_program_arguments()
 		# GOOD USER.
 		# this script was called by regular user, with one parameter
 		
-		CONFIG_FILE_FULLPATH="${PROGRAM_PARAM_1}"		
-		echo "$CONFIG_FILE_FULLPATH"
+		echo "CONFIG_FILE_FULLPATH: $CONFIG_FILE_FULLPATH"
 	
 	else
 		# ...failsafe case
 		msg="Incorrect number of command line arguments. Exiting now..."
-		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
+		exit_with_error "$E_UNEXPECTED_BRANCH_ENTERED" "$msg"
 	fi
 
 	
@@ -520,6 +550,36 @@ function test_file_path_valid_form
 }
 
 ###############################################################################################
+# need to test for read access to file 
+# 
+function test_file_path_access
+{
+	echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
+
+	test_result=
+	test_file_fullpath=$1
+
+	echo "test_file_fullpath is set to: $test_file_fullpath"
+
+	# test for expected file type (regular) and read permission
+	if [ -f "$test_file_fullpath" ] && [ -r "$test_file_fullpath" ]
+	then
+		# test file found and ACCESSIBLE OK
+		echo "Test file found to be readable" && echo
+		test_result=0
+	else
+		# -> return due to failure of any of the above tests:
+		test_result=1 # just because...
+		echo "Returning from function \"${FUNCNAME[0]}\" with test result code: $E_REQUIRED_FILE_NOT_FOUND"
+		return $E_REQUIRED_FILE_NOT_FOUND
+	fi
+
+	echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
+
+	return "$test_result"
+}
+
+###############################################################################################
 # generic need to test for access to a directory
 # 
 function test_dir_path_access
@@ -533,13 +593,13 @@ function test_dir_path_access
 
 	if [ -d "$test_dir_fullpath" ] && cd "$test_dir_fullpath" 2>/dev/null
 	then
-		# directory file found and accessible
-		echo "directory "$test_dir_fullpath" found and accessed ok" && echo
+		# directory file found and ACCESSIBLE
+		echo "directory "$test_dir_fullpath" found and ACCESSED OK" && echo
 		test_result=0
 	elif [ -d "$test_dir_fullpath" ] ## 
 	then
 		# directory file found BUT NOT accessible CAN'T RECOVER FROM THIS
-		echo "directory "$test_dir_fullpath" found, BUT NOT accessed ok" && echo
+		echo "directory "$test_dir_fullpath" found, BUT NOT ACCESSED OK" && echo
 		test_result=1
 		echo "Returning from function \"${FUNCNAME[0]}\" with test result code: $E_FILE_NOT_ACCESSIBLE"
 		return $E_FILE_NOT_ACCESSIBLE
@@ -628,7 +688,7 @@ function setup_dst_dir()
 		echo "Creating the directory now..." && echo
 		mkdir "$destination_holding_dir_fullpath"
 	else
-		echo "The DIRECTORY path access test FAILED and returned: $return_code"
+		echo "The DIRECTORY path ACCESS TEST FAILED and returned: $return_code"
 		echo "Nothing to do now, but to exit..." && echo
 		exit $E_FILE_NOT_ACCESSIBLE
 	fi
