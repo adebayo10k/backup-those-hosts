@@ -1,38 +1,45 @@
 #!/bin/bash
 #: Title		:host-config-backup.sh
 #: Date			:2021-02-06
-#: Author		:"Damola Adebayo" <damola@algoLifeNetworks.com>
+#: Author		:"Damola Adebayo"
 #: Version		:1.0
 #: Description	:use to create backup copy (ie one-way) of various system-specific files
 #: Description	:such as configuration files that aren't covered by the routine backups
-#: Description	:of the working directories.files are copied to a synchronised location
+#: Description	:of the working directories. files are --update copied to external device if
+#: Description	:possible, else to a local sychronised directory.
 #: Options		:None
 
 ###############################################################################################
-# This program is concerned only with files that are not synchronised along with the mutable files, \
+# This program is concerned only with files that are not synchronised along with the frequently mutating files, \
 # since they are DIFFERENT on each host and/or they're not accessible by regular user permissions. \
 # For example:
-	# global configuration files
-	# git managed files
+	# configuration files
 	# HOME, Downloads... dirs
 
-# This program is only concerned with getting current copies of these files into sync-ready position \
-# on respective hosts. That's it. CRON makes this happen frequently (few times per day)
+# This program only needs to try to run say, once every day, as these configuration and 
+# host-specific files change less frequently.
 
-# If the program is being run as a root cronjob, $0 will be the local git repository, otherwise \
+# This program is only concerned with getting current copies of these files onto external drive, or \
+# into sync-ready position on respective hosts. That's it. CRON makes this happen daily.
+
+# If the program is being run as a root cronjob, $0 will be from the local git repository, otherwise \
 # if run directly will be the symlink in ~/bin. The program branches based on whether interactive shell. \
-# Also, when called by a root cronjob, it needs program parameters for:
-	# regular username
-	# destination_holding_dir_fullpath
+# Also, (WHILE WAITING FOR OUR JSON CONFIG FILE) when called by a root cronjob, it needs to be passed program parameters for:
+	# regular logged in username
+	# destination_holding_dir_fullpath (local)
+	# destination_holding_dir_fullpath (external)
 # on bash:
 # m h  dom mon dow   command
-# */10 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh "my_username" "/dest/dir"
+# 30 12,16 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh
 
 # Needs to run as root to get access to those global configuration files
-# adjust file permissions and ownerships
+# then adjust file ownership or not?
 
 # To add a new file path to this program, we just add it to the hostfiles_fullpaths_list array
 # for now, but clearly this information will soon come from a json configuration file!
+
+# NOTE: new cp --update strategy assumes that existing source files get modified or not, but don't get deleted.
+# ...so need a way to get rid of last backup of a deleted file.
 ###############################################################################################
 
 function main 
@@ -42,55 +49,62 @@ function main
 	###############################################################################################
 	
 	## EXIT CODES:
-	E_UNEXPECTED_BRANCH_ENTERED=10
-	E_OUT_OF_BOUNDS_BRANCH_ENTERED=11
-	E_INCORRECT_NUMBER_OF_ARGS=12
-	E_UNEXPECTED_ARG_VALUE=13
-	E_REQUIRED_FILE_NOT_FOUND=20
-	E_REQUIRED_PROGRAM_NOT_FOUND=21
-	E_UNKNOWN_RUN_MODE=30
-	E_UNKNOWN_EXECUTION_MODE=31
-	E_FILE_NOT_ACCESSIBLE=40
-
-
-	export E_UNEXPECTED_BRANCH_ENTERED
-	export E_OUT_OF_BOUNDS_BRANCH_ENTERED
-	export E_INCORRECT_NUMBER_OF_ARGS
-	export E_UNEXPECTED_ARG_VALUE
-	export E_REQUIRED_FILE_NOT_FOUND
-	export E_REQUIRED_PROGRAM_NOT_FOUND
-	export E_UNKNOWN_RUN_MODE
-	export E_UNKNOWN_EXECUTION_MODE
-	export E_FILE_NOT_ACCESSIBLE
-
+	export E_UNEXPECTED_BRANCH_ENTERED=10
+	export E_OUT_OF_BOUNDS_BRANCH_ENTERED=11
+	export E_INCORRECT_NUMBER_OF_ARGS=12
+	export E_UNEXPECTED_ARG_VALUE=13
+	export E_REQUIRED_FILE_NOT_FOUND=20
+	export E_REQUIRED_PROGRAM_NOT_FOUND=21
+	export E_UNKNOWN_RUN_MODE=30
+	export E_UNKNOWN_EXECUTION_MODE=31
+	export E_FILE_NOT_ACCESSIBLE=40
 
 	#######################################################################
-	program_param_0=${1:-"not_yet_set"} ## 
+	PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
 
-	MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=2
+	MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=1
 	ACTUAL_NO_OF_PROGRAM_PARAMETERS=$#
 	ALL_THE_PARAMETERS_STRING="$@"
 
-	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
+
+	CONFIG_FILE_FULLPATH=""
 	
 	my_username=""
 	my_homedir=""
 	test_line="" # global...
 
-	USER_PRIV=
+	# establish the script RUN_MODE using whoami command.
+	if [ $(whoami) == "root" ]
+	then
+		RUN_MODE="batch"
+	else
+		RUN_MODE="interactive"
+	fi
 	
 	abs_filepath_regex='^(/{1}[A-Za-z0-9\.\ _~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
 	all_filepath_regex='^(/?[A-Za-z0-9\.\ _~:@-]+)+(/)?$' # both relative and absolute file path
 
 	# TODO: host info for entry test removed until json config sorted
 
-	ACTUAL_HOST=$(hostname)
+	ACTUAL_HOST=$(hostname)	
 
 	# array of absolute paths to host-specific directory and regular file (mostly configuration files) sources
 	# this list is the superset of lists of each host - if file doesn't exist, just ignored.
 	declare -a hostfiles_fullpaths_list=()	
 
+
+	LOG_FILE="/home/damola/crontest.txt"
+	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
+	echo > "$LOG_FILE"
+	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
+	echo "PROGRAM_PARAM_1: $PROGRAM_PARAM_1" >> "$LOG_FILE" # debug	
 	#echo "program:" && echo "$0" && exit 0 # debug
+	#output=$(dummy 2)
+	#echo $output && exit 0 # debug
+	echo $(whoami) >> "$LOG_FILE"
+	echo $(pwd) >> "$LOG_FILE"
+	echo "RUN_MODE: $RUN_MODE" >> "$LOG_FILE" # debug
+	#exit 0 # debug
 	
 	###############################################################################################
 
@@ -98,8 +112,10 @@ function main
 	# 'SHOW STOPPER' FUNCTION CALLS:	
 	###############################################################################################
 
-	# verify and validate program positional parameters
-	verify_and_validate_program_arguments
+	# count, cleanup and validate, test program positional parameters
+	cleanup_and_validate_program_arguments
+	
+	exit 0 # debug
 
 	# entry test to prevent running this program on an inappropriate host
 	# entry tests apply only to those highly host-specific or filesystem-specific programs that are hard to generalise
@@ -134,7 +150,7 @@ function main
 	# FUNCTIONS CALLED ONLY IF THIS PROGRAM USES A CONFIGURATION FILE:	
 	###############################################################################################
 
-	if [ -n "$config_file_fullpath" ]
+	if [ -n "$CONFIG_FILE_FULLPATH" ]
 	then
 		:
 		#display_current_config_file
@@ -176,8 +192,173 @@ function main
 ####  FUNCTION DECLARATIONS  
 ###############################################################################################
 
+# exit program with non-zero exit code
+function exit_with_error()
+{
+	
+	error_code="$1"
+	error_message="$2"
+
+	if [ $RUN_MODE == "interactive" ]
+	then
+		echo "EXIT CODE: $error_code"		
+		echo "$error_message" && echo && sleep 1
+		echo "USAGE: $(basename $0) [<absolute file path>...]+" && echo && sleep 1
+
+	else
+		echo "EXIT CODE: $error_code" >> "$LOG_FILE"
+		echo "$error_message" >> "$LOG_FILE"	
+
+	fi
+
+	exit $error_code
+
+}
+
+###############################################################################################
+# this program is allowed to have ... arguments
+function cleanup_and_validate_program_arguments()
+{
+
+	#echo "USAGE: $(basename $0).sh [FULLPATH TO CONFIGURATION FILE]"
+
+	# establish that number of parameters is valid
+	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -le 1 ]
+	then
+		# 
+		if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ]
+		then			
+			# sanitise_program_args
+			sanitise_absolute_path_value "$PROGRAM_PARAM_1"
+			echo "test_line has the value: $test_line"
+			PROGRAM_PARAM_1=$test_line
+			
+			# TODO: validate_program_args.. test dir
+		else
+			# zero params case
+			echo "zero program parameter case ok" && echo # debug
+			echo "USAGE: $(basename $0) [ FULLPATH TO CONFIGURATION FILE]" && echo # debug
+		fi
+	else
+		msg="Incorrect number of command line arguments. Exiting now..."
+		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
+	fi
+	
+	
+	# only the regular user can call using zero parameters as in an interactive shell
+	# the root user is non-interactive, so must provide exactly one parameter
+
+	echo "$RUN_MODE"
+	echo "no of params: $ACTUAL_NO_OF_PROGRAM_PARAMETERS"
+
+	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "batch" ]
+	then
+		msg="Incorrect number of command line arguments. Exiting now..."
+		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
+
+	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "interactive" ]
+	then
+		# this script was called by regular user, with zero parameters
+		
+		get_user_inputs # path to the configuration file
+
+	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ] && [ $RUN_MODE == "batch" ]
+	then
+		# GOOD USER.
+		# this script was called by regular user, with one parameter
+		#### OR...
+		# script was called during a root cronjob, with one parameter. we ARE root!
+		# config file will tell us which regular users' configuration to deal with
+		
+		CONFIG_FILE_FULLPATH="${PROGRAM_PARAM_1}"
+		echo "${HOME} $(date)" >> "$LOG_FILE" # debug
+		echo "CONFIG_FILE_FULLPATH: $CONFIG_FILE_FULLPATH" >> "$LOG_FILE" # debug		
+
+	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ] && [ $RUN_MODE == "interactive" ]
+	then
+		# GOOD USER.
+		# this script was called by regular user, with one parameter
+		
+		CONFIG_FILE_FULLPATH="${PROGRAM_PARAM_1}"		
+		echo "$CONFIG_FILE_FULLPATH"
+	
+	else
+		# ...failsafe case
+		msg="Incorrect number of command line arguments. Exiting now..."
+		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
+	fi
+
+	
+
+	echo "OUR CURRENT SHELL LEVEL IS: $SHLVL"
+	
+
+}
+
+##########################################################################################################
+# entry test to prevent running this program on an inappropriate host
+function entry_test()
+{
+	go=36
+
+	#echo "go was set to: $go"
+
+	for authorised_host in ${authorised_host_list[@]}
+	do
+		#echo "$authorised_host"
+		[ $authorised_host == $ACTUAL_HOST ] && go=0 || go=1
+		[ "$go" -eq 0 ] && echo "THE CURRENT HOST IS AUTHORISED TO USE THIS PROGRAM" && break
+	done
+
+	# if loop finished with go=1
+	[ $go -eq 1 ] && echo "UNAUTHORISED HOST. ABOUT TO EXIT..." && sleep 2 && exit 1
+
+
+	#echo "go was set to: $go"
+
+}
+
+###############################################################################################
+# Display a program header:
+function display_program_header(){
+
+	echo
+	echo -e "		\033[33m===================================================================\033[0m";
+	echo -e "		\033[33m||   Welcome to the host-specific configuration file backuper    ||  author: adebayo10k\033[0m";  
+	echo -e "		\033[33m===================================================================\033[0m";
+	echo
+
+	# REPORT SOME SCRIPT META-DATA
+	echo "The absolute path to this script is:	$0"
+	echo "Script root directory set to:		$(dirname $0)"
+	echo "Script filename set to:			$(basename $0)" && echo
+
+	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
+		
+}
+
+###############################################################################################
+# give user option to leave if here in error:
+function get_user_permission_to_proceed(){
+
+	echo " Press ENTER to continue or type q to quit."
+	echo && sleep 1
+
+	# TODO: if the shell level is -ge 2, called from another script so bypass this exit option
+	read last_chance
+	case $last_chance in 
+	[qQ])	echo
+			echo "Goodbye!" && sleep 1
+			exit 0
+				;;
+	*) 		echo "You're IN..." && echo && sleep 1
+				;;
+	esac 
+}
+
+###############################################################################################
 # here because we're a logged in, regular user with a fully interactive shell
-# assuming single logged in user
+# we're here to provide the absolute path to a backup configuration file
 function get_user_inputs
 {
 	echo "Enter the name of the currently logged in regular user:"
@@ -200,6 +381,10 @@ function get_user_inputs
 	# temporary development workaound for interactive regular user
 	# this should really just be configured, 
 	# perhaps should be EARLY user confirmation of ALL configured params like this?
+
+	# /home/damola/.config/backup-configs.json
+
+
 	find ~/Documents/businesses -type d -name "*_host_specific_files_current" && echo 
 
 	echo && echo
@@ -377,7 +562,7 @@ function setup_source_dirs()
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
 	# get crontab -l outputs redirected into a file that we can backup
-	# USER_PRIV (reg or root) branching: TODO: SHOULD BE MODE: INTERACTIVE | NON-INTERACTIVE
+	# USER_PRIV (reg or root) branching: TODO: SHOULD BE MODE: INTERACTIVE | NON-INTERACTIVE; WHOAMI= REG | ROOT
 	if [ $USER_PRIV == "reg" ]
 	then
 		echo "$(sudo crontab -l 2>/dev/null)" > "${my_homedir}/temp_root_cronfile"
@@ -424,7 +609,7 @@ function setup_source_dirs()
 }
 
 ##########################################################################################################
-# delete existing backups and recreate destination_holding_dir_fullpath
+# update destination_holding_dir_fullpath
 function setup_dst_dir()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
@@ -560,7 +745,7 @@ function backup_regulars_and_dirs()
 		else
 			# failsafe
 			echo "Entered the failsafe"
-			echo "WEIRD FILE EXISTS on this host for:"
+			echo "WEIRD, NO SUCH FILE EXISTS on this host for:"
 			echo $file && echo
 		fi
 
@@ -617,150 +802,20 @@ function dummy()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	#ssh 5490
-	echo -e "\e[32msetup variables\e[0m"
-	echo -e "\e[32m\$cp template-script.sh new-script.sh\e[0m"
-	echo -e "\033[33mREMEMBER TO .... oh crap!\033[0m" && sleep 4 && echo
+	n=$1
+	echo "data $(($n*6)) ssh:5490"
 
+
+	#echo -e "\e[32msetup variables\e[0m"
+	#echo -e "\e[32m\$cp template-script.sh new-script.sh\e[0m"
+	#echo -e "\033[33mREMEMBER TO .... oh crap!\033[0m" && sleep 4 && echo
+#
 
 	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
 
 }
 
 ###############################################################################################
-# this program is allowed to have ... arguments
-function verify_and_validate_program_arguments()
-{
 
-	echo "USAGE: $(basename $0)"
-
-	# establish that number of params is valid
-	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] || [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 2 ]
-	then
-		# if two args put them into an array
-		if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 2 ]
-		then
-			#echo "IFS: -$IFS+"
-			ALL_THE_PARAMETERS_ARRAY=( $ALL_THE_PARAMETERS_STRING )
-			echo "ALL_THE_PARAMETERS_ARRAY[0]: ${ALL_THE_PARAMETERS_ARRAY[0]}"
-			echo "ALL_THE_PARAMETERS_ARRAY[1]: ${ALL_THE_PARAMETERS_ARRAY[1]}"
-			echo "ALL_THE_PARAMETERS_ARRAY[2]: ${ALL_THE_PARAMETERS_ARRAY[2]}"
-			# sanitise_program_args
-			sanitise_absolute_path_value "${ALL_THE_PARAMETERS_ARRAY[1]}"
-			#echo "test_line has the value: $test_line"
-			ALL_THE_PARAMETERS_ARRAY[1]=$test_line
-
-			# sanitise my_username
-			sanitise_relative_path_value "${ALL_THE_PARAMETERS_ARRAY[0]}"
-			#echo "test_line has the value: $test_line"
-			ALL_THE_PARAMETERS_ARRAY[0]=$test_line
-			
-			# validate_program_args
-		else
-			# zero params case
-			echo "zero program parameter case ok"
-		fi
-	else
-		echo "Usage: $(basename $0) [<absolute file path>...]+"
-		echo "Incorrect number of command line arguments. Exiting now..."		
-		exit $E_INCORRECT_NUMBER_OF_ARGS
-	fi
-	
-	# establish how this script was called.
-	# assume regular user always calls using symlink in their ~/bin
-	if [ $0 = "${HOME}/bin/host-config-backup.sh" ] && [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ]
-	then
-		# this script was called by regular user, with zero parameters
-		echo "reg"
-		my_username="$(id -un)" ## will come from user input
-		my_homedir="${HOME}"
-		USER_PRIV="reg"
-		get_user_inputs #
-	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 2 ] && [ $0 != "${HOME}/bin/host-config-backup.sh" ]
-	then
-		# script was called during a root cronjob, with two parameters. we ARE root!
-		# params tell us which regular users' configuration to deal with
-		# assume root cron always calls directly from repository file
-		echo "root"
-		USER_PRIV="root"
-		my_username="${ALL_THE_PARAMETERS_ARRAY[0]}"
-		my_homedir="/home/${my_username}"
-		destination_holding_dir_fullpath="${ALL_THE_PARAMETERS_ARRAY[1]}"
-	else
-		# ...
-		echo "Usage: $(basename $0) [<absolute file path>...]+"
-		echo "Incorrect number of command line arguments. Exiting now..."		
-		exit $E_INCORRECT_NUMBER_OF_ARGS
-	fi
-
-	echo "${HOME} $(date)" >> "${my_homedir}/crontest.txt" # debug
-
-	echo "OUR CURRENT SHELL LEVEL IS: $SHLVL"
-	
-
-}
-
-##########################################################################################################
-# entry test to prevent running this program on an inappropriate host
-function entry_test()
-{
-	go=36
-
-	#echo "go was set to: $go"
-
-	for authorised_host in ${authorised_host_list[@]}
-	do
-		#echo "$authorised_host"
-		[ $authorised_host == $ACTUAL_HOST ] && go=0 || go=1
-		[ "$go" -eq 0 ] && echo "THE CURRENT HOST IS AUTHORISED TO USE THIS PROGRAM" && break
-	done
-
-	# if loop finished with go=1
-	[ $go -eq 1 ] && echo "UNAUTHORISED HOST. ABOUT TO EXIT..." && sleep 2 && exit 1
-
-
-	#echo "go was set to: $go"
-
-}
-
-###############################################################################################
-# Display a program header:
-function display_program_header(){
-
-	echo
-	echo -e "		\033[33m===================================================================\033[0m";
-	echo -e "		\033[33m||   Welcome to the host-specific configuration file backuper    ||  author: adebayo10k\033[0m";  
-	echo -e "		\033[33m===================================================================\033[0m";
-	echo
-
-	# REPORT SOME SCRIPT META-DATA
-	echo "The absolute path to this script is:	$0"
-	echo "Script root directory set to:		$(dirname $0)"
-	echo "Script filename set to:			$(basename $0)" && echo
-
-	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
-		
-}
-
-###############################################################################################
-# give user option to leave if here in error:
-function get_user_permission_to_proceed(){
-
-	echo " Press ENTER to continue or type q to quit."
-	echo && sleep 1
-
-	# TODO: if the shell level is -ge 2, called from another script so bypass this exit option
-	read last_chance
-	case $last_chance in 
-	[qQ])	echo
-			echo "Goodbye!" && sleep 1
-			exit 0
-				;;
-	*) 		echo "You're IN..." && echo && sleep 1
-				;;
-	esac 
-}
-
-###############################################################################################
 
 main "$@"; exit
