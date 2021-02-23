@@ -291,7 +291,7 @@ function cleanup_and_validate_program_arguments()
 	then
 		# this script was called by regular user, with zero parameters
 		
-		get_user_inputs # get path to the configuration file from user
+		get_path_to_config_file # get path to the configuration file from user
 
 	# next 2 conditions are just for debugging- delete or move
 	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ] && [ $RUN_MODE == "batch" ]
@@ -387,63 +387,52 @@ function get_user_permission_to_proceed(){
 }
 
 ###############################################################################################
-# here because we're a logged in, regular user with a fully interactive shell
+# here because we're a logged in, regular user with interactive shell
 # we're here to provide the absolute path to a backup configuration file
-function get_user_inputs
+function get_path_to_config_file()
 {
-	echo "Enter the name of the currently logged in regular user:"
-	echo && sleep 1
-	read my_username
-
-	if [ $my_username == "$(id -un)" ]
-	then
-		echo "username VALID" && echo
-	else
-		# 
-		echo "The valid user test FAILED"
-		echo "Nothing to do now, but to exit..." && echo
-		exit $E_UNEXPECTED_ARG_VALUE
-	fi
-
-	echo "Enter (copy-paste) the full path to the destination directory:"
+	echo "Enter (copy-paste) the absolute path to the backup configuration file:"
 	echo && echo
 
-	# temporary development workaound for interactive regular user
-	# this should really just be configured, 
-	# perhaps should be EARLY user confirmation of ALL configured params like this?
-
-	# /home/damola/.config/backup-configs.json
-
-
-	find ~/Documents/businesses -type d -name "*_host_specific_files_current" && echo 
+	#
+	find /home -type f -name "*backup-configs.json" && echo 
 
 	echo && echo
-	read destination_holding_dir_fullpath
+	read path_to_config_file
 
-	if [ -n "$destination_holding_dir_fullpath" ] 
+	if [ -n "$path_to_config_file" ] 
 	then
-		sanitise_absolute_path_value "$destination_holding_dir_fullpath"
+		sanitise_absolute_path_value "$path_to_config_file"
 		#echo "test_line has the value: $test_line"
-		destination_holding_dir_fullpath=$test_line
+		path_to_config_file=$test_line
 
-		# this valid form test works for sanitised directory paths
-		test_file_path_valid_form "${destination_holding_dir_fullpath}"
+		# this valid form test works for sanitised file paths
+		test_file_path_valid_form "$path_to_config_file"
 		return_code=$?
 		if [ $return_code -eq 0 ]
 		then
-			echo "The dst filename is of VALID FORM"
+			echo "The configuration filename is of VALID FORM"
 		else
-			echo "The valid form test FAILED and returned: $return_code"
-			echo "Nothing to do now, but to exit..." && echo
-			exit $E_UNEXPECTED_ARG_VALUE
+			msg="The valid form test FAILED and returned: $return_code. Exiting now..."
+			exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
 		fi
 
-		# NO FURTHER TESTS REQUIRED HERE, AS IF DIR DOESN'T YET EXIST, WE'LL SOON CREATE IT.
+		# if the above test returns ok, ...
+		test_file_path_access "$path_to_config_file"
+		return_code=$?
+		if [ $return_code -eq 0 ]
+		then
+			echo "The configuration file is ACCESSIBLE OK"
+			declare -r CONFIG_FILE_FULLPATH="$path_to_config_file"
+		else
+			msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
+			exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
+		fi
+
 	else
 		# 
-		echo "The valid filepath test FAILED. Filepath was of zero length"
-		echo "Nothing to do now, but to exit..." && echo
-		exit $E_UNEXPECTED_ARG_VALUE
+		msg="The valid form test FAILED and returned: $return_code. Exiting now..."
+		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
 	fi
 }
 ##########################################################################################################
