@@ -55,6 +55,7 @@ function main
 	export E_UNKNOWN_RUN_MODE=30
 	export E_UNKNOWN_EXECUTION_MODE=31
 	export E_FILE_NOT_ACCESSIBLE=40
+	export E_UNKNOWN_ERROR=32
 
 	#######################################################################
 	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
@@ -72,6 +73,7 @@ function main
 
 	DST_BACKUP_DIR_EXTERNAL=
 	DST_BACKUP_DIR_LOCAL=
+	dst_dir_current_fullpath=
 
 	BACKUP_DESCRIPTION=
 	REGULAR_USER=
@@ -123,17 +125,6 @@ function main
 	#exit 0 # debug
 
 	
-	
-	###############################################################################################
-	# 'SHOW STOPPER' FUNCTION CALLS:	
-	###############################################################################################
-	###############################################################################################
-	# FUNCTIONS CALLED ONLY IF THIS PROGRAM USES A CONFIGURATION FILE:	
-	###############################################################################################
-
-	
-
-	
 	###############################################################################################
 	# PROGRAM-SPECIFIC FUNCTION CALLS:	
 	###############################################################################################
@@ -149,12 +140,10 @@ function main
 
 	fi
 	
+	setup_dst_dirs
 
 	exit 0 # debug
 
-	setup_dst_dirs
-
-	
 
 	backup_regulars_and_dirs
 
@@ -429,7 +418,7 @@ function validate_program_args()
 		#echo "The configuration file is ACCESSIBLE OK"
 		CONFIG_FILE_FULLPATH="$test_filepath"
 
-		else
+	else
 		msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
 		exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
 	fi
@@ -719,44 +708,55 @@ function setup_src_dirs()
 }
 
 ##########################################################################################################
-# update destination_holding_dir_fullpath
+# establish whether we're able to backup our src files to, in order of preference:
+#	$DST_BACKUP_DIR_EXTERNAL, $DST_BACKUP_DIR_LOCAL
 function setup_dst_dirs()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	echo "dst dir: $destination_holding_dir_fullpath"
+	setup_outcome=42 #initialise to fail state (!= 0)
 
-	# test exists and accessible
-	test_dir_path_access "$destination_holding_dir_fullpath"
-	return_code=$?
-	if [ $return_code -eq 0 ]
-	then
-		echo "The full path EXISTS and WORKS OK" && echo
-	elif [ $return_code -eq $E_REQUIRED_FILE_NOT_FOUND ]
-	then
-		echo "The HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
-		echo "Creating the directory now..." && echo
-		mkdir "$destination_holding_dir_fullpath"
-	else
-		echo "The DIRECTORY path ACCESS TEST FAILED and returned: $return_code"
-		echo "Nothing to do now, but to exit..." && echo
-		exit $E_FILE_NOT_ACCESSIBLE
-	fi
+	# establish whether external drive/network fs/remote fs is mounted
 
-	#if [ -d $destination_holding_dir_fullpath ]
-	#then	
-	#	rm -rf $destination_holding_dir_fullpath && mkdir $destination_holding_dir_fullpath
-	#else
-	#	mkdir $destination_holding_dir_fullpath
-	#fi
-	
-	# USER_PRIV (reg or root) branching: TODO: SHOULD BE MODE: INTERACTIVE | NON-INTERACTIVE
-	if [ $USER_PRIV == "reg" ]
+	for dst_dir in "$DST_BACKUP_DIR_EXTERNAL" "$DST_BACKUP_DIR_LOCAL"
+	do
+		echo "TRYING dst dir: $dst_dir"
+
+		# test dst_dir exists and accessible
+		test_dir_path_access "$dst_dir"
+		return_code=$?
+		if [ $return_code -eq 0 ]
+		then
+			# dst_dir found and accessible ok
+			echo "The dst_dir filepath EXISTS and WORKS OK" && echo
+			dst_dir_current_fullpath="$dst_dir"
+			setup_outcome=0 #success
+			break
+
+		elif [ $return_code -eq $E_REQUIRED_FILE_NOT_FOUND ]
+		then
+			# dst_dir did not exist
+			echo "The dst HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
+			
+			mkdir "$dst_dir" >/dev/null >&1 && echo "Creating the directory now..." && echo && \
+			dst_dir_current_fullpath="$dst_dir" && setup_outcome=0 && break \
+			|| setup_outcome=1 && echo "Directory creation failed for:" && echo "$dst_dir" && echo && continue			
+
+		else
+			# dst_dir found but not accessible
+			msg="The dst DIRECTORY filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
+			exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
+		fi
+
+	done
+
+	if [ "$setup_outcome" -ne 0 ]
 	then
-		echo "NOTICE: Now is a good time to tidy up the ~/Downloads directory. I'll wait here." && echo
-		echo "Press ENTER when ready to continue..." && read
+		# couldn't mkdirs, no dirs to make or just something not good...
+		msg="Unexpected, UNKNOWN ERROR setting up the dst dir... Exiting now..."
+		exit_with_error "$E_UNKNOWN_ERROR" "$msg"
 	fi
-	
+			
 	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
 
 }
@@ -774,18 +774,18 @@ function traverse() {
 		rel_filepath=$test_line
 
 		# happens for the first only (TODO: test this with a debug echo!)
-		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
+		mkdir -p "$(dirname "${dst_dir_current_fullpath}/${rel_filepath}")"
 		
 		# how does the order of these tests affect performance?
 		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ $USER_PRIV == "reg" ]; then
 			# preserve file metadata, never follow symlinks, update copy if necessary
 			# give some user progress feedback
 			#echo "Copying file $file ..."
-			sudo cp -uvPp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}"
+			sudo cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
 		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $USER_PRIV == "root" ]; then
 			#echo "Copying file $file ..."
-			cp -uvPp "${file}" "${destination_holding_dir_fullpath}/${rel_filepath}"
+			cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
 		# if  file is a symlink, reject (irrespective of USER_PRIV)
 		elif [ -h "${file}" ]; then
@@ -817,7 +817,14 @@ function backup_regulars_and_dirs()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	setup_src_dirs	# later, this may be from json config
+	# 
+	if [ $RUN_MODE == "interactive" ]
+	then
+		echo "Now is a good time to tidy up the ~/Downloads directory. I'll wait here." && echo
+		echo "Press ENTER when ready to continue..." && read
+	fi
+
+	#setup_src_dirs	# later, this may be from json config
 	
 	date_label=$(date +'%F')
 
@@ -830,7 +837,7 @@ function backup_regulars_and_dirs()
 		rel_filepath=$test_line
 
 		# happens for the first only (TODO: test this with a debug echo!)
-		mkdir -p "$(dirname "${destination_holding_dir_fullpath}/${rel_filepath}")"
+		mkdir -p "$(dirname "${dst_dir_current_fullpath}/${rel_filepath}")"
 
 		# if source directory is not empty...
 		if [ -d $file ] && [ -n "$(ls -A $file)" ]
@@ -842,12 +849,12 @@ function backup_regulars_and_dirs()
 			# give some user progress feedback
 			echo "Copying top level file $file ..."
 			# preserve file metadata, never follow symlinks, update copy if necessary
-			sudo cp -uvPp $file "${destination_holding_dir_fullpath}/${rel_filepath}"
+			sudo cp -uvPp $file "${dst_dir_current_fullpath}/${rel_filepath}"
 		elif [ -f $file ] && [ $USER_PRIV == "root" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying top level file $file ..."
-			cp -uvPp $file "${destination_holding_dir_fullpath}/${rel_filepath}"
+			cp -uvPp $file "${dst_dir_current_fullpath}/${rel_filepath}"
 		elif  [ -h "${file}" ]
 		then
 			echo "Skipping symbolic link in configuration list..."
@@ -879,9 +886,9 @@ function change_file_ownerships()
 	# USER_PRIV (reg or root) branching:
 	if [ $USER_PRIV == "reg" ]
 	then
-		sudo chown -R ${my_username}:${my_username} "${destination_holding_dir_fullpath}"
+		sudo chown -R ${my_username}:${my_username} "${dst_dir_current_fullpath}"
 	else
-		chown -R ${my_username}:${my_username} "${destination_holding_dir_fullpath}"
+		chown -R ${my_username}:${my_username} "${dst_dir_current_fullpath}"
 	fi	
 	
 	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
@@ -893,7 +900,7 @@ function report_summary()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	for file in "${destination_holding_dir_fullpath}"/*
+	for file in "${dst_dir_current_fullpath}"/*
 	do
 		if [ -d $file ]
 		then
