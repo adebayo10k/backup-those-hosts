@@ -22,12 +22,8 @@
 # This program is only concerned with getting current copies of these files onto external drive, or \
 # into sync-ready position on respective hosts. That's it. CRON makes this happen daily.
 
-# If the program is being run as a root cronjob, $0 will be from the local git repository, otherwise \
-# if run directly will be the symlink in ~/bin. The program branches based on whether interactive shell. \
-# Also, (WHILE WAITING FOR OUR JSON CONFIG FILE) when called by a root cronjob, it needs to be passed program parameters for:
-	# regular logged in username
-	# destination_holding_dir_fullpath (local)
-	# destination_holding_dir_fullpath (external)
+# The program branches based on whether interactive shell.
+
 # on bash:
 # m h  dom mon dow   command
 # 30 12,16 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh
@@ -35,11 +31,12 @@
 # Needs to run as root to get access to those global configuration files
 # then adjust file ownership or not?
 
-# To add a new file path to this program, we just add it to the hostfiles_fullpaths_list array
-# for now, but clearly this information will soon come from a json configuration file!
+# To add a new file path to this program, we just add it to the json configuration file.
 
 # NOTE: new cp --update strategy assumes that existing source files get modified or not, but don't get deleted.
-# ...so need a way to get rid of last backup of a deleted file.
+# ...so need a way to get rid of last CURRENT backup of a deleted file.
+
+# host authorisation is moot because configuration file specifies host-specific configuration parameters 
 ###############################################################################################
 
 function main 
@@ -62,34 +59,37 @@ function main
 	#######################################################################
 	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
 
-	MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=1
-	ACTUAL_NO_OF_PROGRAM_PARAMETERS=$#
+	declare -i MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=1
+	declare -ir ACTUAL_NO_OF_PROGRAM_PARAMETERS=$#
 	ALL_THE_PARAMETERS_STRING="$@"
+
+	CONFIG_FILE_FULLPATH=
+
+	# declare the backup scheme for which this backup program is designed
+	declare -r BACKUP_SCHEME_TYPE="host_configuration_file_backups"
+	# declare the constant identifying the current host
+	declare -r THIS_HOST="$(hostname)"
+
+	DST_BACKUP_DIR_EXTERNAL=
+	DST_BACKUP_DIR_LOCAL=
+
+	BACKUP_DESCRIPTION=
+	REGULAR_USER=
+	REGULAR_USER_HOME_DIR=
+	declare -a SRC_FILES_FULLPATHS_LIST=()
+	declare -a EXCLUDED_FILES_FULLPATHS_LIST=()
+	LOG_FILE=
 	
-	my_username=""
-	my_homedir=""
+	ABS_FILEPATH_REGEX='^(/{1}[A-Za-z0-9\.\ _~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
+	REL_FILEPATH_REGEX='^(/?[A-Za-z0-9\.\ _~:@-]+)+(/)?$' # relative file part-path, before trimming
+
 	test_line="" # global...
 
-	
-	
-	abs_filepath_regex='^(/{1}[A-Za-z0-9\.\ _~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
-	all_filepath_regex='^(/?[A-Za-z0-9\.\ _~:@-]+)+(/)?$' # both relative and absolute file path
-
-	# TODO: host info for entry test removed until json config sorted
-
-	declare -r ACTUAL_HOST=$(hostname)	
-
-	# array of absolute paths to host-specific directory and regular file (mostly configuration files) sources
-	# this list is the superset of lists of each host - if file doesn't exist, just ignored.
-	declare -a hostfiles_fullpaths_list=()
 
 	
 	
 	###############################################################################################
 
-	###############################################################################################
-	# 'SHOW STOPPER' FUNCTION CALLS:	
-	###############################################################################################
 
 	# establish the script RUN_MODE using whoami command.
 	if [ $(whoami) == "root" ]
@@ -100,36 +100,8 @@ function main
 		declare -r RUN_MODE="interactive"
 	fi
 
-	declare -r LOG_FILE="/home/damola/crontest.txt"
-	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
-	echo > "$LOG_FILE"
-	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
-	echo "PROGRAM_PARAM_1: $PROGRAM_PARAM_1" >> "$LOG_FILE" # debug	
-	#echo "program:" && echo "$0" && exit 0 # debug
-	#output=$(dummy 2)
-	#echo $output && exit 0 # debug
-	echo $(whoami) >> "$LOG_FILE"
-	echo $(pwd) >> "$LOG_FILE"
-	echo "RUN_MODE: $RUN_MODE" >> "$LOG_FILE" # debug
-	#exit 0 # debug
-
-	# count, cleanup and validate, test program positional parameters
-	cleanup_and_validate_program_arguments
-	
-	exit 0 # debug
-
-	# entry test to prevent running this program on an inappropriate host
-	# entry tests apply only to those highly host-specific or filesystem-specific programs that are hard to generalise
-	if [[ $(declare -a | grep "authorised_host_list" 2>/dev/null) ]]; then
-		entry_test
-	else
-		echo "entry test skipped..." && sleep 1 && echo
-	fi
-	
-	###############################################################################################
-	# $SHLVL DEPENDENT FUNCTION CALLS:	
-	###############################################################################################
-	# using $SHLVL to show whether this script was called from another script, or from command line
+	# count program positional parameters
+	check_no_of_program_args
 
 	echo "OUR CURRENT SHELL LEVEL IS: $SHLVL"
 
@@ -139,43 +111,50 @@ function main
 		display_program_header
 
 		# give user option to leave if here in error:
-		# USER_PRIV (reg or root) branching:
-		if [ $USER_PRIV == "reg" ]
+		if [ $RUN_MODE == "interactive" ]
 		then
 			get_user_permission_to_proceed
 		fi
 	fi
 
+	# cleanup and validate, test program positional parameters
+	cleanup_and_validate_program_arguments
+	
+	#exit 0 # debug
 
+	
+	
+	###############################################################################################
+	# 'SHOW STOPPER' FUNCTION CALLS:	
+	###############################################################################################
 	###############################################################################################
 	# FUNCTIONS CALLED ONLY IF THIS PROGRAM USES A CONFIGURATION FILE:	
 	###############################################################################################
 
-	if [ -n "$CONFIG_FILE_FULLPATH" ]
-	then
-		:
-		#display_current_config_file
-#
-		#get_user_config_edit_decision
-#
-		## test whether the configuration files' format is valid, and that each line contains something we're #expecting
-		#validate_config_file_content
-#
-		## IMPORT CONFIGURATION INTO PROGRAM VARIABLES
-		#import_ecrypt_mount_configuration
-	fi
+	
 
-
-	###############################################################################################
-	# TODO: remember to a cron configuration files to list
-
+	
 	###############################################################################################
 	# PROGRAM-SPECIFIC FUNCTION CALLS:	
 	###############################################################################################
 
-	setup_dst_dir
+	if [ -n "$CONFIG_FILE_FULLPATH" ]
+	then
+		echo "the config is REAL"
+		#display_current_config_file
+		import_json
+	else
+		msg="NO CONFIG FOR YOU, returned code: $return_code. Exiting now..."
+		exit_with_error "$E_REQUIRED_FILE_NOT_FOUND" "$msg" 	
 
-	#exit 0 # debug
+	fi
+	
+
+	exit 0 # debug
+
+	setup_dst_dirs
+
+	
 
 	backup_regulars_and_dirs
 
@@ -192,15 +171,127 @@ function main
 ###############################################################################################
 ####  FUNCTION DECLARATIONS  
 ###############################################################################################
-###########
-function usage() {
-  echo "please install docker, psql, jq, and curl"
+
+function import_json() 
+{
+	HOST_BACKUP_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .[]') 
+
+	echo $HOST_BACKUP_DATA_STRING
+	echo && echo
+
+	# easier to assign values to program variables using this LOCAL bash array structure
+	declare -a HOST_BACKUP_DATA_ARRAY=( $HOST_BACKUP_DATA_STRING )
+	
+	#
+	DST_BACKUP_DIR_EXTERNAL="${HOST_BACKUP_DATA_ARRAY[1]}"
+	DST_BACKUP_DIR_LOCAL="${HOST_BACKUP_DATA_ARRAY[2]}"
+	# 	# TODO: generalise cleanup_and_validate_program_arguments
+
+	
+	echo "$DST_BACKUP_DIR_EXTERNAL"
+	echo "$DST_BACKUP_DIR_LOCAL"
+	echo && echo "###########" && echo
+
+	########
+
+	# jq -r leaves sentences unqoted, so data would have to escape-quote
+	#BACKUP_SCHEME_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .[]')
+
+	#echo $BACKUP_SCHEME_DATA_STRING && echo
+
+
+
+	######## FIRST... ASSIGNING THE JSON ARRAY DATA TO CORRESPONDING BASH ARRAY DATA STRUCTURES...
+
+
+	SRC_FILES_FULLPATHS_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .src_files_fullpaths[]')
+
+	echo $SRC_FILES_FULLPATHS_STRING
+
+	SRC_FILES_FULLPATHS_LIST=( $SRC_FILES_FULLPATHS_STRING )
+	# cleanup_and_validate_program_arguments
+	echo && echo "###########" && echo
+
+	########
+
+	EXCLUDED_FILES_FULLPATHS_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .excluded_files_fullpaths[]')
+
+	echo $EXCLUDED_FILES_FULLPATHS_STRING
+
+	EXCLUDED_FILES_FULLPATHS_LIST=( $EXCLUDED_FILES_FULLPATHS_STRING )
+	# cleanup_and_validate_program_arguments
+	echo && echo "###########" && echo
+
+
+
+	######## NEXT... ASSIGNING THE JSON VALUES DATA TO CORRESPONDING BASH SCALAR VARIABLES...
+
+
+
+	BACKUP_DESCRIPTION=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .backup_description')
+
+	# cleanup_and_validate_program_arguments
+	echo $BACKUP_DESCRIPTION
+	echo && echo "###########" && echo
+
+	########
+
+	REGULAR_USER=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .regular_user')
+
+	# cleanup_and_validate_program_arguments
+	echo $REGULAR_USER
+	echo && echo "###########" && echo
+
+	########
+
+	REGULAR_USER_HOME_DIR=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .regular_user_home_dir')
+
+	# cleanup_and_validate_program_arguments
+	echo $REGULAR_USER_HOME_DIR
+	echo && echo "###########" && echo
+
+	########
+
+	LOG_FILE=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .log_file')
+
+	# TODO: generalise cleanup_and_validate_program_arguments
+	echo $LOG_FILE
+	echo && echo "###########" && echo
+
+	########
+
+
+
+	
+	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
+	echo > "$LOG_FILE"
+	echo "THIS_HOST: $THIS_HOST" >> "$LOG_FILE" # debug
+	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
+	echo "PROGRAM_PARAM_1: $PROGRAM_PARAM_1" >> "$LOG_FILE" # debug	
+	#echo "program:" && echo "$0" && exit 0 # debug
+	#output=$(dummy 2)
+	#echo $output && exit 0 # debug
+	echo $(whoami) >> "$LOG_FILE"
+	echo $(pwd) >> "$LOG_FILE"
+	echo "RUN_MODE: $RUN_MODE" >> "$LOG_FILE" # debug
+	#exit 0 # debug
+
+
+
+}
+
+##############################################################################################
+
+function program_requirements() 
+{
+  echo "Please install jq, and curl"
   exit 1
 }
 
 ## check requirements
-#for libName in docker psql jq curl; do
-#  which $libName > $DEVNULL || usage
+#for program_name in jq curl
+#do
+#  which $program_name >/dev/null 2>&1 || program_requirements
 #done
 
 ###############################################################################################
@@ -211,7 +302,7 @@ function exit_with_error()
 	error_code="$1"
 	error_message="$2"
 
-	if [ $RUN_MODE == "interactive" ]
+	if [[ $RUN_MODE =~ "interactive" ]]
 	then
 		echo "EXIT CODE: $error_code"		
 		echo "$error_message" && echo && sleep 1
@@ -228,61 +319,40 @@ function exit_with_error()
 }
 
 ###############################################################################################
-# this program is allowed to have ... arguments
-function cleanup_and_validate_program_arguments()
+function check_no_of_program_args()
 {
+	#echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
+	#echo "ACTUAL_NO: $ACTUAL_NO_OF_PROGRAM_PARAMETERS"
+	
 	# establish that number of parameters is valid
-	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -le 1 ]
+	if [[ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -gt $MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS ]]
 	then
-		# 
-		if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ]
-		then			
-			# sanitise_program_args
-			sanitise_absolute_path_value "$PROGRAM_PARAM_1"
-			echo "test_line has the value: $test_line"
-			PROGRAM_PARAM_TRIMMED=$test_line
-			
-			# this valid form test works for sanitised file paths
-			test_file_path_valid_form "$PROGRAM_PARAM_TRIMMED"
-			return_code=$?
-			if [ $return_code -eq 0 ]
-			then
-				echo "The configuration filename is of VALID FORM"
-			else
-				msg="The valid form test FAILED and returned: $return_code. Exiting now..."
-				exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
-			fi
-
-			# if the above test returns ok, ...
-			test_file_path_access "$PROGRAM_PARAM_TRIMMED"
-			return_code=$?
-			if [ $return_code -eq 0 ]
-			then
-				echo "The configuration file is ACCESSIBLE OK"
-				declare -r CONFIG_FILE_FULLPATH="$PROGRAM_PARAM_TRIMMED"
-			else
-				msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
-				exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
-			fi
-		else
-			# zero params case  # debug
-			echo "zero program parameter case ok" && echo # debug
-			echo "USAGE: $(basename $0) [ FULLPATH TO CONFIGURATION FILE]" && echo # debug
-		fi
-	else
 		msg="Incorrect number of command line arguments. Exiting now..."
 		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
 	fi
 	
-	
+
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+
+}
+
+###############################################################################################
+# this program is allowed to have ... arguments
+function cleanup_and_validate_program_arguments()
+{	
 	# only the regular user can call using zero parameters as in an interactive shell
 	# the root user is non-interactive, so must provide exactly one parameter
 
-	echo "RUN_MODE: $RUN_MODE"
-	echo "no of params: $ACTUAL_NO_OF_PROGRAM_PARAMETERS"
-
-	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "batch" ]
+	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ]
+	then			
+		# sanitise_program_args
+		sanitise_absolute_path_value "$PROGRAM_PARAM_1"
+		#echo "test_line has the value: $test_line"
+		PROGRAM_PARAM_TRIMMED=$test_line
+		validate_program_args "$PROGRAM_PARAM_TRIMMED"			
+			
+	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "batch" ]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
 		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
@@ -292,57 +362,100 @@ function cleanup_and_validate_program_arguments()
 		# this script was called by regular user, with zero parameters
 		
 		get_path_to_config_file # get path to the configuration file from user
-
-	# next 2 conditions are just for debugging- delete or move
-	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ] && [ $RUN_MODE == "batch" ]
-	then
-		# GOOD USER.
-		# this script was called by regular user, with one parameter
-		#### OR...
-		# script was called during a root cronjob, with one parameter. we ARE root!
-		# config file will tell us which regular users' configuration to deal with
-		
-		echo "${HOME} $(date)" >> "$LOG_FILE" # debug
-		echo "CONFIG_FILE_FULLPATH: $CONFIG_FILE_FULLPATH" >> "$LOG_FILE" # debug		
-
-	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ] && [ $RUN_MODE == "interactive" ]
-	then
-		# GOOD USER.
-		# this script was called by regular user, with one parameter
-		
-		echo "CONFIG_FILE_FULLPATH: $CONFIG_FILE_FULLPATH"
 	
 	else
 		# ...failsafe case
 		msg="Incorrect number of command line arguments. Exiting now..."
 		exit_with_error "$E_UNEXPECTED_BRANCH_ENTERED" "$msg"
 	fi
-
-	
-
-	echo "OUR CURRENT SHELL LEVEL IS: $SHLVL"
 	
 
 }
+
+###############################################################################################
+# here because we're a logged in, regular user with interactive shell
+# we're here to provide the absolute path to a backup configuration file
+function get_path_to_config_file()
+{
+	echo "Looks like you forgot to add the configuration file as a program argument..." && echo && sleep 1
+
+	echo "Please enter it now to continue using this program" && echo && sleep 1
+
+	echo "Enter (copy-paste) the absolute path to the backup configuration file:" && echo
+
+	#
+	find /home -type f -name "*backup-configs.json" && echo 
+
+	echo && echo
+	read path_to_config_file
+
+	if [ -n "$path_to_config_file" ] 
+	then
+		sanitise_absolute_path_value "$path_to_config_file"
+		#echo "test_line has the value: $test_line"
+		path_to_config_file=$test_line
+
+		validate_program_args "$path_to_config_file"		
+
+	else
+		# 
+		msg="The valid form test FAILED and returned: $return_code. Exiting now..."
+		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
+	fi
+}
+###############################################################################################
+function validate_program_args()
+{
+	#echo && echo "Entered into function ${FUNCNAME[0]}" && echo
+
+	test_filepath="$1"
+
+	# this valid form test works for sanitised file paths
+	test_file_path_valid_form "$test_filepath"
+	return_code=$?
+	if [ $return_code -eq 0 ]
+	then
+		echo "The configuration filename is of VALID FORM"
+	else
+		msg="The valid form test FAILED and returned: $return_code. Exiting now..."
+		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
+	fi
+
+	# if the above test returns ok, ...
+	test_file_path_access "$test_filepath"
+	return_code=$?
+	if [ $return_code -eq 0 ]
+	then
+		#echo "The configuration file is ACCESSIBLE OK"
+		CONFIG_FILE_FULLPATH="$test_filepath"
+
+		else
+		msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
+		exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
+	fi
+
+
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+
+}
+
 
 ##########################################################################################################
 # entry test to prevent running this program on an inappropriate host
 function entry_test()
 {
 	go=36
-
 	#echo "go was set to: $go"
 
-	for authorised_host in ${authorised_host_list[@]}
+	for authorised_host in ${AUTHORISED_HOST_LIST[@]}
 	do
 		#echo "$authorised_host"
-		[ $authorised_host == $ACTUAL_HOST ] && go=0 || go=1
+		[ $authorised_host == $THIS_HOST ] && go=0 || go=1
 		[ "$go" -eq 0 ] && echo "THE CURRENT HOST IS AUTHORISED TO USE THIS PROGRAM" && break
 	done
 
 	# if loop finished with go=1
 	[ $go -eq 1 ] && echo "UNAUTHORISED HOST. ABOUT TO EXIT..." && sleep 2 && exit 1
-
 
 	#echo "go was set to: $go"
 
@@ -386,61 +499,12 @@ function get_user_permission_to_proceed(){
 	esac 
 }
 
-###############################################################################################
-# here because we're a logged in, regular user with interactive shell
-# we're here to provide the absolute path to a backup configuration file
-function get_path_to_config_file()
-{
-	echo "Enter (copy-paste) the absolute path to the backup configuration file:"
-	echo && echo
 
-	#
-	find /home -type f -name "*backup-configs.json" && echo 
-
-	echo && echo
-	read path_to_config_file
-
-	if [ -n "$path_to_config_file" ] 
-	then
-		sanitise_absolute_path_value "$path_to_config_file"
-		#echo "test_line has the value: $test_line"
-		path_to_config_file=$test_line
-
-		# this valid form test works for sanitised file paths
-		test_file_path_valid_form "$path_to_config_file"
-		return_code=$?
-		if [ $return_code -eq 0 ]
-		then
-			echo "The configuration filename is of VALID FORM"
-		else
-			msg="The valid form test FAILED and returned: $return_code. Exiting now..."
-			exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
-		fi
-
-		# if the above test returns ok, ...
-		test_file_path_access "$path_to_config_file"
-		return_code=$?
-		if [ $return_code -eq 0 ]
-		then
-			echo "The configuration file is ACCESSIBLE OK"
-			declare -r CONFIG_FILE_FULLPATH="$path_to_config_file"
-		else
-			msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
-			exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
-		fi
-
-	else
-		# 
-		msg="The valid form test FAILED and returned: $return_code. Exiting now..."
-		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
-	fi
-}
 ##########################################################################################################
 # keep sanitise functions separate and specialised, as we may add more to specific value types in future
 # FINAL OPERATION ON VALUE, SO GLOBAL test_line SET HERE. RENAME CONCEPTUALLY DIFFERENT test_line NAMESAKES
 function sanitise_absolute_path_value ##
 {
-
 	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
 	# sanitise values
@@ -466,45 +530,44 @@ function sanitise_absolute_path_value ##
 	#echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line" && echo
 
 	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
-
 }
 ##########################################################################################################
-# keep sanitise functions separate and specialised, as we may add more to specific value types in future
-# FINAL OPERATION ON VALUE, SO GLOBAL test_line SET HERE...
-function sanitise_relative_path_value
+# basically a trim function that lets us prepare a relative path to be tagged onto an absolute one,
+# but also trims ANY string argument passed in.
+# GLOBAL test_line SET HERE...
+function sanitise_trim_relative_path()
 {
-
 	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
-	# sanitise values
+	# sanitise (well the trimming part anyway) values
 	# - trim leading and trailing space characters
 	# - trim leading / for relative paths
 	# - trim trailing / for all paths
+
 	test_line="${1}"
 	#echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
 
 	while [[ "$test_line" == *'/' ]] ||\
 	 [[ "$test_line" == [[:blank:]]* ]] ||\
 	 [[ "$test_line" == *[[:blank:]] ]]
+
 	do 
 		# TRIM TRAILING AND LEADING SPACES AND TABS
-		# backstop code, as with leading spaces, config file line wouldn't even have been
-		# recognised as a value!
 		test_line=${test_line%%[[:blank:]]}
 		test_line=${test_line##[[:blank:]]}
 
 		# TRIM TRAILING / FOR ABSOLUTE PATHS:
 		test_line=${test_line%'/'}
+
 	done
 
 	# FINALLY, JUST THE ONCE, TRIM LEADING / FOR RELATIVE PATHS:
-	# afer this, test_line should just be the directory name
+	# afer this, test_line should just be the directory name, 
 	test_line=${test_line##'/'}
 
 	#echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line"
 
 	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
-
 }
 
 ##########################################################################################################
@@ -513,27 +576,26 @@ function sanitise_relative_path_value
 # 
 function test_file_path_valid_form
 {
-	echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
 	test_result=
 	test_file_fullpath=$1
 	
-	echo "test_file_fullpath is set to: $test_file_fullpath"
+	#echo "test_file_fullpath is set to: $test_file_fullpath"
 	#echo "test_dir_fullpath is set to: $test_dir_fullpath"
 
-	if [[ $test_file_fullpath =~ $abs_filepath_regex ]]
+	if [[ $test_file_fullpath =~ $ABS_FILEPATH_REGEX ]]
 	then
-		echo "THE FORM OF THE INCOMING PARAMETER IS OF A VALID ABSOLUTE FILE PATH"
+		#echo "THE FORM OF THE INCOMING PARAMETER IS OF A VALID ABSOLUTE FILE PATH"
 		test_result=0
 	else
-		echo "AN INCOMING PARAMETER WAS SET, BUT WAS NOT A MATCH FOR OUR KNOWN PATH FORM REGEX "$abs_filepath_regex"" && sleep 1 && echo
+		echo "AN INCOMING PARAMETER WAS SET, BUT WAS NOT A MATCH FOR OUR KNOWN PATH FORM REGEX "$ABS_FILEPATH_REGEX"" && sleep 1 && echo
 		echo "Returning with a non-zero test result..."
 		test_result=1
 		return $E_UNEXPECTED_ARG_VALUE
 	fi 
 
-
-	echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 
 	return "$test_result"
 }
@@ -543,18 +605,18 @@ function test_file_path_valid_form
 # 
 function test_file_path_access
 {
-	echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
 	test_result=
 	test_file_fullpath=$1
 
-	echo "test_file_fullpath is set to: $test_file_fullpath"
+	#echo "test_file_fullpath is set to: $test_file_fullpath"
 
 	# test for expected file type (regular) and read permission
 	if [ -f "$test_file_fullpath" ] && [ -r "$test_file_fullpath" ]
 	then
 		# test file found and ACCESSIBLE OK
-		echo "Test file found to be readable" && echo
+		#echo "Test file found to be readable" && echo
 		test_result=0
 	else
 		# -> return due to failure of any of the above tests:
@@ -563,7 +625,7 @@ function test_file_path_access
 		return $E_REQUIRED_FILE_NOT_FOUND
 	fi
 
-	echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 
 	return "$test_result"
 }
@@ -573,17 +635,17 @@ function test_file_path_access
 # 
 function test_dir_path_access
 {
-	echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
 
 	test_result=
 	test_dir_fullpath=$1
 
-	echo "test_dir_fullpath is set to: $test_dir_fullpath"
+	#echo "test_dir_fullpath is set to: $test_dir_fullpath"
 
 	if [ -d "$test_dir_fullpath" ] && cd "$test_dir_fullpath" 2>/dev/null
 	then
 		# directory file found and ACCESSIBLE
-		echo "directory "$test_dir_fullpath" found and ACCESSED OK" && echo
+		#echo "directory "$test_dir_fullpath" found and ACCESSED OK" && echo
 		test_result=0
 	elif [ -d "$test_dir_fullpath" ] ## 
 	then
@@ -599,19 +661,18 @@ function test_dir_path_access
 		return $E_REQUIRED_FILE_NOT_FOUND
 	fi
 
-	echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
+	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 
 	return "$test_result"
 }
 
 ##########################################################################################################
 # declare after param validation, as list depends on knowing users' home dir etc...
-function setup_source_dirs()
+function setup_src_dirs()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
 	# get crontab -l outputs redirected into a file that we can backup
-	# USER_PRIV (reg or root) branching: TODO: SHOULD BE MODE: INTERACTIVE | NON-INTERACTIVE; WHOAMI= REG | ROOT
 	if [ $USER_PRIV == "reg" ]
 	then
 		echo "$(sudo crontab -l 2>/dev/null)" > "${my_homedir}/temp_root_cronfile"
@@ -659,7 +720,7 @@ function setup_source_dirs()
 
 ##########################################################################################################
 # update destination_holding_dir_fullpath
-function setup_dst_dir()
+function setup_dst_dirs()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
@@ -708,7 +769,7 @@ function traverse() {
 	for file in "$1"/*
 	do
 	    # sanitise copy of file to make it ready for appending as a regular file
-		sanitise_relative_path_value "${file}"
+		sanitise_trim_relative_path "${file}"
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
@@ -756,7 +817,7 @@ function backup_regulars_and_dirs()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	setup_source_dirs	# later, this may be from json config
+	setup_src_dirs	# later, this may be from json config
 	
 	date_label=$(date +'%F')
 
@@ -764,7 +825,7 @@ function backup_regulars_and_dirs()
 	for file in ${hostfiles_fullpaths_list[@]}
 	do
 		# sanitise file to make it ready for appending
-		sanitise_relative_path_value "${file}"
+		sanitise_trim_relative_path "${file}"
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
