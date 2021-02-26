@@ -71,15 +71,19 @@ function main
 	# declare the constant identifying the current host
 	declare -r THIS_HOST="$(hostname)"
 
-	DST_BACKUP_DIR_EXTERNAL=
-	DST_BACKUP_DIR_LOCAL=
+	declare -a EXTERNAL_DRV_DATA_ARRAY=()
+	declare -a LOCAL_DRV_DATA_ARRAY=()
+	declare -a NETWORK_DRV_DATA_ARRAY=()
+	
+	#DST_BACKUP_DIR_EXTERNAL=
+	#DST_BACKUP_DIR_LOCAL=
 	dst_dir_current_fullpath=
 
 	BACKUP_DESCRIPTION=
 	REGULAR_USER=
 	REGULAR_USER_HOME_DIR=
 	declare -a SRC_FILES_FULLPATHS_LIST=()
-	declare -a EXCLUDED_FILES_FULLPATHS_LIST=()
+	declare -a EXCLUDED_FILE_PATTERN_LIST=()
 	LOG_FILE=
 	
 	ABS_FILEPATH_REGEX='^(/{1}[A-Za-z0-9\.\ _~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
@@ -140,7 +144,7 @@ function main
 
 	fi
 	
-	setup_dst_dirs
+	setup_dst_dir
 
 	exit 0 # debug
 
@@ -163,23 +167,51 @@ function main
 
 function import_json() 
 {
-	HOST_BACKUP_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .[]') 
+	#
+	EXTERNAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst_backup_dir_set[] | select(.location=="external_drive") | .[]') 
 
-	echo $HOST_BACKUP_DATA_STRING
+	echo "EXTERNAL_DRV_DATA_STRING: $EXTERNAL_DRV_DATA_STRING"
 	echo && echo
 
-	# easier to assign values to program variables using this LOCAL bash array structure
-	declare -a HOST_BACKUP_DATA_ARRAY=( $HOST_BACKUP_DATA_STRING )
-	
-	#
-	DST_BACKUP_DIR_EXTERNAL="${HOST_BACKUP_DATA_ARRAY[1]}"
-	DST_BACKUP_DIR_LOCAL="${HOST_BACKUP_DATA_ARRAY[2]}"
-	# 	# TODO: generalise cleanup_and_validate_program_arguments
+	# note: the sequence of data in these arrays has been designed to suit the order in which we'll soon process them in setup_dst_dir().
+	## 	# TODO: generalise cleanup_and_validate_program_arguments
+	EXTERNAL_DRV_DATA_ARRAY=( $EXTERNAL_DRV_DATA_STRING )
 
+	echo "${EXTERNAL_DRV_DATA_ARRAY[@]}"
+	echo && echo
+
+	LOCAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst_backup_dir_set[] | select(.location=="local_drive") | .[]') 
+
+	echo "LOCAL_DRV_DATA_STRING: $LOCAL_DRV_DATA_STRING"
+	echo && echo
+
+	LOCAL_DRV_DATA_ARRAY=( $LOCAL_DRV_DATA_STRING )
 	
-	echo "$DST_BACKUP_DIR_EXTERNAL"
-	echo "$DST_BACKUP_DIR_LOCAL"
-	echo && echo "###########" && echo
+	echo "${LOCAL_DRV_DATA_ARRAY[@]}"
+	echo && echo
+
+	NETWORK_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst_backup_dir_set[] | select(.location=="network_drive") | .[]') 
+
+	echo "NETWORK_DRV_DATA_STRING: $NETWORK_DRV_DATA_STRING"
+	echo && echo
+
+	NETWORK_DRV_DATA_ARRAY=( $NETWORK_DRV_DATA_STRING )
+
+	echo "${NETWORK_DRV_DATA_ARRAY[@]}"
+	echo && echo
+
+	## easier to assign values to program variables using this local bash array structure
+	#declare -a LOCAL_DRV_DATA_ARRAY=( $LOCAL_DRV_DATA_STRING )
+	#
+	##
+	#DST_BACKUP_DIR_EXTERNAL="${HOST_BACKUP_DATA_ARRAY[1]}"
+	#DST_BACKUP_DIR_LOCAL="${HOST_BACKUP_DATA_ARRAY[2]}"
+	## 	# TODO: generalise cleanup_and_validate_program_arguments
+#
+	#
+	#echo "$DST_BACKUP_DIR_EXTERNAL"
+	#echo "$DST_BACKUP_DIR_LOCAL"
+	#echo && echo "###########" && echo
 
 	########
 
@@ -203,11 +235,11 @@ function import_json()
 
 	########
 
-	EXCLUDED_FILES_FULLPATHS_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .excluded_files_fullpaths[]')
+	EXCLUDED_FILE_PATTERN_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .excluded_file_patterns[]')
 
-	echo $EXCLUDED_FILES_FULLPATHS_STRING
+	echo $EXCLUDED_FILE_PATTERN_STRING
 
-	EXCLUDED_FILES_FULLPATHS_LIST=( $EXCLUDED_FILES_FULLPATHS_STRING )
+	EXCLUDED_FILE_PATTERN_LIST=( $EXCLUDED_FILE_PATTERN_STRING )
 	# cleanup_and_validate_program_arguments
 	echo && echo "###########" && echo
 
@@ -709,14 +741,154 @@ function setup_src_dirs()
 
 ##########################################################################################################
 # establish whether we're able to backup our src files to, in order of preference:
-#	$DST_BACKUP_DIR_EXTERNAL, $DST_BACKUP_DIR_LOCAL
-function setup_dst_dirs()
+function setup_dst_dir()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
 	setup_outcome=42 #initialise to fail state (!= 0)
 
 	# establish whether external drive/network fs/remote fs is mounted
+	# iterate over paths/to/backups, testing whether their associated mountpoints are available
+	# if so, add path to the AVAILABLE_DST_DIRS array. We'll try to setup only these ones.
+	# for now, we'll NOT attempt to mount if not yet mounted.
+
+	echo "NETWORK_DRV_DATA_ARRAY has ${#NETWORK_DRV_DATA_ARRAY[@]} elements" #debug
+
+	declare -a AVAILABLE_DST_DIRS=() # dir paths whose filesystems are actually mounted at the moment	
+
+	NO_OF_BACKUP_DRIVES=3
+	NO_OF_PROPERTIES_PER_DRIVE=3
+	MAX_NO_OF_PROPERTIES_TO_CHECK=$((NO_OF_BACKUP_DRIVES * NO_OF_PROPERTIES_PER_DRIVE))
+	# aka maximum number of loops to do. ensures this number is exceeded, and we break out of loop, when drives with incomplete data immediately increment count by NO_OF_PROPERTIES_PER_DRIVE in order to move the loop onto the next drive.
+	echo "MAX_NO_OF_PROPERTIES_TO_CHECK: $MAX_NO_OF_PROPERTIES_TO_CHECK" && echo #debug
+
+	TOTAL_NUMBER_OF_ARRAY_ELEMENTS=$(( ${#EXTERNAL_DRV_DATA_ARRAY[@]} + ${#LOCAL_DRV_DATA_ARRAY[@]} + ${#NETWORK_DRV_DATA_ARRAY[@]} ))  #debug
+	echo "TOTAL_NUMBER_OF_ARRAY_ELEMENTS: $TOTAL_NUMBER_OF_ARRAY_ELEMENTS" && echo #debug
+
+	#intialise some variables:
+	switch=1 # off
+	# TODO: also try this with a nested for-loop
+	for ((count=0; count<$MAX_NO_OF_PROPERTIES_TO_CHECK; count++));
+	do		
+		# expecting NO_OF_PROPERTIES_PER_DRIVE elements in each of the arrays
+		mod=$((count % $NO_OF_PROPERTIES_PER_DRIVE))
+		div=$((count / $NO_OF_PROPERTIES_PER_DRIVE))
+
+		# in specific order of backup preference...
+		# if more arrays (drives) are added, count and div will increase, so add new parent case blocks.
+		case $div in 
+		0)	case $mod in
+			0) 	# if array has less than NO_OF_PROPERTIES_PER_DRIVE elements, \
+				# ie - json configuration data is incomplete for this drive...
+				if [ ${#EXTERNAL_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
+				then
+					# ...then, echo message about this
+					echo "Configuration data was incomplete for \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]:-'external_drive'}\". Skipping drive setup..." && echo
+					# skip to next drive by setting count = count + no_of_properties_to_skip;
+					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
+					count=$((count + no_of_properties_to_skip))
+				else
+					echo "Checking the mount state for: \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]}\" ..."
+				fi
+								
+				;;
+			1) 	if ! mountpoint -q "${EXTERNAL_DRV_DATA_ARRAY[${mod}]}" 2>/dev/null
+				then
+					# associated backup destination definitely won't be available
+					# also handles cases where mountpoint value is empty | no such directory
+					echo "\"${EXTERNAL_DRV_DATA_ARRAY[0]}\" is NOT AVAILABLE." && echo
+					# set a switch for the next loop, where $mod == 2
+					switch=1 # (off)
+				else
+					# positively set the switch to 0 (on)
+					echo "mountpoint for \"${EXTERNAL_DRV_DATA_ARRAY[0]}\" is REGISTERED OK." && echo
+					switch=0
+				fi
+				;;
+			2)	if [ "$switch" -eq 0 ]
+				then
+					# append AVAILABLE_DST_DIRS array with backup directory path
+					AVAILABLE_DST_DIRS+=( "${EXTERNAL_DRV_DATA_ARRAY[${mod}]}" )
+					# reset the switch to off
+					switch=1
+				fi
+				;;
+			esac
+			
+			;;				
+		1)	case $mod in
+			0) 	if [ ${#LOCAL_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
+				then
+					echo "count: $count"
+					echo "Configuration data was incomplete for \"${LOCAL_DRV_DATA_ARRAY[${mod}]:-'local_drive'}\". Skipping drive setup..." && echo
+					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
+					count=$((count + no_of_properties_to_skip))
+					echo "count: $count"
+				else
+					echo "Checking the mount state for: \"${LOCAL_DRV_DATA_ARRAY[${mod}]}\" ..."
+				fi
+				;;
+			1) 	if ! mountpoint -q "${LOCAL_DRV_DATA_ARRAY[${mod}]}" 2>/dev/null
+				then					
+					echo "\"${LOCAL_DRV_DATA_ARRAY[0]}\" is NOT AVAILABLE." && echo
+					switch=1
+				else
+					echo "mountpoint for \"${LOCAL_DRV_DATA_ARRAY[0]}\" is REGISTERED OK." && echo
+					switch=0
+				fi
+				;;
+			2)	if [ "$switch" -eq 0 ]
+				then
+					AVAILABLE_DST_DIRS+=( "${LOCAL_DRV_DATA_ARRAY[${mod}]}" )
+					switch=1
+				fi
+				;;
+			esac
+			
+			;;
+		2)	case $mod in
+			0) 	if [ ${#NETWORK_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
+				then
+					echo "Configuration data was incomplete for \"${NETWORK_DRV_DATA_ARRAY[${mod}]:-'network_drive'}\". Skipping drive setup..." && echo
+					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
+					count=$((count + no_of_properties_to_skip))
+				else
+					echo "Checking the mount state for: \"${NETWORK_DRV_DATA_ARRAY[${mod}]}\" ..."
+				fi
+				;;
+			1) 	if ! mountpoint -q "${NETWORK_DRV_DATA_ARRAY[${mod}]}" 2>/dev/null
+				then
+					echo "count: $count"
+					echo "\"${NETWORK_DRV_DATA_ARRAY[0]:-'network_drive'}\" is NOT AVAILABLE." && echo
+					switch=1
+				else
+					echo "mountpoint for \"${NETWORK_DRV_DATA_ARRAY[0]:-'network_drive'}\" is REGISTERED OK." && echo
+					switch=0
+				fi
+				;;
+			2)	if [ "$switch" -eq 0 ]
+				then
+					AVAILABLE_DST_DIRS+=( "${NETWORK_DRV_DATA_ARRAY[${mod}]}" )
+					switch=1
+				fi
+				;;
+			esac
+			
+			;;
+		*) 	msg="for-loop in setup_dst_dir() in OUT OF BOUNDS ITERATION. Exiting now..."
+			exit_with_error "$E_OUT_OF_BOUNDS_BRANCH_ENTERED" "$msg"
+		 	
+			;;
+    	esac  
+
+	done
+
+
+	echo "${AVAILABLE_DST_DIRS[@]}"
+	echo "${#AVAILABLE_DST_DIRS[@]}"
+
+	exit 0 # debug
+
 
 	for dst_dir in "$DST_BACKUP_DIR_EXTERNAL" "$DST_BACKUP_DIR_LOCAL"
 	do
@@ -752,7 +924,8 @@ function setup_dst_dirs()
 
 	if [ "$setup_outcome" -ne 0 ]
 	then
-		# couldn't mkdirs, no dirs to make or just something not good...
+		# failsafe...
+		# couldn't mkdirs, no dirs to make or just something else not good...
 		msg="Unexpected, UNKNOWN ERROR setting up the dst dir... Exiting now..."
 		exit_with_error "$E_UNKNOWN_ERROR" "$msg"
 	fi
