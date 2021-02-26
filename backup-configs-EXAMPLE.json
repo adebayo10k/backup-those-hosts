@@ -5,18 +5,18 @@
       "dst_backup_dir_set": [
         {
           "location": "external_drive",
-          "path": "/media/user/storage-box/current_laptop_files",
-          "mountpoint": "/media/user/storage-box"
+          "mountpoint": "/media/user/storage-box",
+          "path": "/media/user/storage-box/current_laptop_files"
         },
         {
           "location": "local_drive",
-          "path": "/home/user/path/to/backup/dir/current_laptop_files",
-          "mountpoint": "/"
+          "mountpoint": "/",
+          "path": "/home/user/path/to/backup/dir/current_laptop_files"
         },
         {
           "location": "network_drive",
-          "path": "/home/user/Server/path/to/backup/dir/current_laptop_files",
-          "mountpoint": "/home/user/Server"
+          "mountpoint": "/home/user/Server",
+          "path": "/home/user/Server/path/to/backup/dir/current_laptop_files"
         }
       ]
     },
@@ -25,18 +25,18 @@
       "dst_backup_dir_set": [
         {
           "location": "external_drive",
-          "path": "/media/user/storage-box/current_desktop_files",
-          "mountpoint": "/media/user/storage-box"
+          "mountpoint": "/media/user/storage-box",
+          "path": "/media/user/storage-box/current_desktop_files"
         },
         {
           "location": "local_drive",
-          "path": "/home/user/path/to/backup/dir/current_desktop_files",
-          "mountpoint": "/"
+          "mountpoint": "/",
+          "path": "/home/user/path/to/backup/dir/current_desktop_files"
         },
         {
           "location": "network_drive",
-          "path": "/home/user/Server/path/to/backup/dir/current_desktop_files",
-          "mountpoint": "/home/user/Server"
+          "mountpoint": "/home/user/Server",
+          "path": "/home/user/Server/path/to/backup/dir/current_desktop_files"
         }
       ]
     }
