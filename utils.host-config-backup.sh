@@ -77,7 +77,7 @@ function main
 	
 	#DST_BACKUP_DIR_EXTERNAL=
 	#DST_BACKUP_DIR_LOCAL=
-	dst_dir_current_fullpath=
+	dst_dir_current_fullpath= # the first destination backup directory found to be accessible ok
 
 	BACKUP_DESCRIPTION=
 	REGULAR_USER=
@@ -144,7 +144,7 @@ function main
 
 	create_last_minute_src_files
 
-	exit 0 # debug
+	#exit 0 # debug
 
 	backup_regulars_and_dirs
 
@@ -226,17 +226,22 @@ function import_json()
 
 	echo $SRC_FILES_FULLPATHS_STRING
 
-	SRC_FILES_FULLPATHS_LIST=( $SRC_FILES_FULLPATHS_STRING )
-	# cleanup_and_validate_program_arguments
+	SRC_FILES_FULLPATHS_LIST=( $SRC_FILES_FULLPATHS_STRING ) # input sanitation done later in backup_regulars_and_dirs()
 	echo && echo "###########" && echo
 
 	########
 
-	EXCLUDED_FILE_PATTERN_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .excluded_file_patterns[]')
+	#-j option doesn't print newline after each output - so we can pattern match single string
+	EXCLUDED_FILE_PATTERN_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -j --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .excluded_file_patterns[]')
 
-	echo $EXCLUDED_FILE_PATTERN_STRING
+	# remove spaces to match a single pattern
+	#EXCLUDED_FILE_PATTERN_STRING=$(echo "$EXCLUDED_FILE_PATTERN_STRING" | sed 's/[[:space:]]//g')
 
-	EXCLUDED_FILE_PATTERN_LIST=( $EXCLUDED_FILE_PATTERN_STRING )
+	echo "$EXCLUDED_FILE_PATTERN_STRING"
+
+	#exit 0 # debug
+
+	EXCLUDED_FILE_PATTERN_LIST=( $EXCLUDED_FILE_PATTERN_STRING ) # this array may not be needed
 	# cleanup_and_validate_program_arguments
 	echo && echo "###########" && echo
 
@@ -843,8 +848,6 @@ function setup_dst_dir()
 	echo "HAS GOOD MOUNTPOINT(S): ${mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
 	echo "HOW MANY WITH GOOD MOUNTPOINT(S): ${#mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
 
-	#exit 0 # debug
-
 	# now we know which dst dirs are at least on drives that are currently mounted,
 	# we can further check that they're accessible and try to assign them to dst_dir_current_fullpath,
 	# one after the other
@@ -898,44 +901,44 @@ function setup_dst_dir()
 ############################################################################################
 # called for each directory in the list
 function traverse() {
-	date_label=$(date +'%F')
+	#date_label=$(date +'%F')
 	
-	for file in "$1"/*
+	for file in "$1"/* # could have used ls "$1"
 	do
 	    # sanitise copy of file to make it ready for appending as a regular file
 		sanitise_trim_relative_path "${file}"
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
-		# happens for the first only (TODO: test this with a debug echo!)
+		# only happens with the first subdir (TODO: test this with a debug echo!)
 		mkdir -p "$(dirname "${dst_dir_current_fullpath}/${rel_filepath}")"
 		
 		# how does the order of these tests affect performance?
-		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ $USER_PRIV == "reg" ]; then
+		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ $RUN_MODE == "interactive" ]; then
 			# preserve file metadata, never follow symlinks, update copy if necessary
 			# give some user progress feedback
 			#echo "Copying file $file ..."
 			sudo cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
-		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $USER_PRIV == "root" ]; then
+		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $RUN_MODE =="batch" ]; then
 			#echo "Copying file $file ..."
 			cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
-		# if  file is a symlink, reject (irrespective of USER_PRIV)
+		# if  file is a symlink, reject (irrespective of RUN_MODE)
 		elif [ -h "${file}" ]; then
-			echo "Skipping symlink file: $file ..."
+			#echo "Skipping symlink file: $file ..."
 			continue 
 
-	    elif [ -d "${file}" ]; then # file must be a directory to have arrived here, but check anyway.
+	    elif [ -d "${file}" ]; then # file must be a directory to have arrived at this branch, but check anyway.
 			# skip over excluded subdirectories
 			# TODO: exlude .git dirs completely. after all, this is a git-independent backup!
-			if  [ -z "$(ls -A $file)" ] || [[ $file =~ '.config/Code' ]] # || [[ $file =~ '.git/objects' ]] 
+			if  [ -z "$(ls -A $file)" ] || [[ "$EXCLUDED_FILE_PATTERN_STRING" =~ "$file" ]]
 			then
-				echo "Skipping excluded dir: $file"
+				#echo "Skipping excluded dir: $file" | tee -a $LOG_FILE && echo
 				continue
 			fi
 			# enter recursion with a non-empty directory
-	        echo "entering recursion with: ${file}"
+	        #echo "entering recursion with: ${file}"
 	        traverse "${file}"
 		else
 			# failsafe condition
@@ -958,19 +961,17 @@ function backup_regulars_and_dirs()
 		echo "Press ENTER when ready to continue..." && read
 	fi
 
-	#setup_src_dirs	# later, this may be from json config
-	
-	date_label=$(date +'%F')
+	#date_label=$(date +'%F')
 
-	# copy sparse sources into dst
-	for file in ${hostfiles_fullpaths_list[@]}
+	# copy sparse sources into $dst_dir_current_fullpath
+	for file in ${SRC_FILES_FULLPATHS_LIST[@]}
 	do
-		# sanitise file to make it ready for appending
+		# sanitise filepath to make it ready for appending to dst_dir_current_fullpath
 		sanitise_trim_relative_path "${file}"
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
-		# happens for the first only (TODO: test this with a debug echo!)
+		# only happens with the first subdir (TODO: test this with a debug echo!)
 		mkdir -p "$(dirname "${dst_dir_current_fullpath}/${rel_filepath}")"
 
 		# if source directory is not empty...
@@ -978,20 +979,20 @@ function backup_regulars_and_dirs()
 		then
 			## give user some progress feedback
 			echo "Copying dir $file ..." && traverse $file
-		elif [ -f $file ] && [ $USER_PRIV == "reg" ] && [ ! -h "${file}" ]
+		elif [ -f $file ] && [ $RUN_MODE == "interactive" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying top level file $file ..."
 			# preserve file metadata, never follow symlinks, update copy if necessary
 			sudo cp -uvPp $file "${dst_dir_current_fullpath}/${rel_filepath}"
-		elif [ -f $file ] && [ $USER_PRIV == "root" ] && [ ! -h "${file}" ]
+		elif [ -f $file ] && [ $RUN_MODE == "batch" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying top level file $file ..."
 			cp -uvPp $file "${dst_dir_current_fullpath}/${rel_filepath}"
 		elif  [ -h "${file}" ]
 		then
-			echo "Skipping symbolic link in configuration list..."
+			echo "Skipping symbolic link in src_files_fullpaths list..."
 			continue
 		else
 			# failsafe
@@ -1003,7 +1004,7 @@ function backup_regulars_and_dirs()
 	done
 
 	# delete those temporary crontab -l output files
-	rm -fv "${my_homedir}/temp_root_cronfile" "${my_homedir}/temp_user_cronfile"
+	rm -fv "${REGULAR_USER_HOME_DIR}/temp_root_cronfile" "${REGULAR_USER_HOME_DIR}/temp_user_cronfile"
 	
 	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
@@ -1015,14 +1016,13 @@ function backup_regulars_and_dirs()
 # preserving ownership etc. might also have more fidelity, and enable any restore operations.
 function change_file_ownerships()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
+	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 
-	# USER_PRIV (reg or root) branching:
-	if [ $USER_PRIV == "reg" ]
+	if [ $RUN_MODE == "interactive" ]
 	then
-		sudo chown -R ${my_username}:${my_username} "${dst_dir_current_fullpath}"
+		sudo chown -R ${REGULAR_USER}:${REGULAR_USER} "${dst_dir_current_fullpath}"
 	else
-		chown -R ${my_username}:${my_username} "${dst_dir_current_fullpath}"
+		chown -R ${REGULAR_USER}:${REGULAR_USER} "${dst_dir_current_fullpath}"
 	fi	
 	
 	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
@@ -1032,7 +1032,7 @@ function change_file_ownerships()
 # if we have an interactive shell, give user a summary of dir sizes in the dst dir
 function report_summary()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
+	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 
 	for file in "${dst_dir_current_fullpath}"/*
 	do
@@ -1044,7 +1044,7 @@ function report_summary()
 	done
 
 
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 
 }
 
