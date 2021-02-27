@@ -124,28 +124,27 @@ function main
 	# cleanup and validate, test program positional parameters
 	cleanup_and_validate_program_arguments
 	
-	#exit 0 # debug
-
 	
 	###############################################################################################
 	# PROGRAM-SPECIFIC FUNCTION CALLS:	
 	###############################################################################################
 
-	if [ -n "$CONFIG_FILE_FULLPATH" ]
+	if [ -n "$CONFIG_FILE_FULLPATH" ] # should have been received as a validated program argument
 	then
 		echo "the config is REAL"
 		# open/display_current_config_file to user (if run mode is interactive) for editing option
 		import_json
 	else
-		msg="NO CONFIG FOR YOU, returned code: $return_code. Exiting now..."
+		msg="NO CONFIG FOR YOU. Exiting now..."
 		exit_with_error "$E_REQUIRED_FILE_NOT_FOUND" "$msg" 	
 
 	fi
 	
 	setup_dst_dir
 
-	exit 0 # debug
+	create_last_minute_src_files
 
+	exit 0 # debug
 
 	backup_regulars_and_dirs
 
@@ -408,7 +407,7 @@ function get_path_to_config_file()
 
 	else
 		# 
-		msg="The valid form test FAILED and returned: $return_code. Exiting now..."
+		msg="User entered a zero length argument for the configuration file. Exiting now..."
 		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
 	fi
 }
@@ -482,8 +481,8 @@ function display_program_header(){
 
 	# REPORT SOME SCRIPT META-DATA
 	echo "The absolute path to this script is:	$0"
-	echo "Script root directory set to:		$(dirname $0)"
-	echo "Script filename set to:			$(basename $0)" && echo
+	echo "The script root directory is:		$(dirname $0)"
+	echo "The script filename is:			$(basename $0)" && echo
 
 	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
 		
@@ -496,7 +495,7 @@ function get_user_permission_to_proceed(){
 	echo " Press ENTER to continue or type q to quit."
 	echo && sleep 1
 
-	# TODO: if the shell level is -ge 2, called from another script so bypass this exit option
+	# TODO: if the shell level is -gt 2, called from another script so bypass this exit option
 	read last_chance
 	case $last_chance in 
 	[qQ])	echo
@@ -676,55 +675,29 @@ function test_dir_path_access
 }
 
 ##########################################################################################################
-# declare after param validation, as list depends on knowing users' home dir etc...
-function setup_src_dirs()
+# write those files we'd like to backup...
+# do this until there's a better way of including them in the src_files configuration
+function create_last_minute_src_files()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
+	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 
-	# get crontab -l outputs redirected into a file that we can backup
-	if [ $USER_PRIV == "reg" ]
+	# # write roots' crontab into a file that we can backup
+	if [ $RUN_MODE == "interactive" ] # if interactive shell
 	then
-		echo "$(sudo crontab -l 2>/dev/null)" > "${my_homedir}/temp_root_cronfile"
-		echo "$(crontab -l 2>/dev/null)" > "${my_homedir}/temp_user_cronfile"
+		echo "$(sudo crontab -u root -l 2>/dev/null)" > "${REGULAR_USER_HOME_DIR}/temp_root_cronfile"
+	elif [ $RUN_MODE == "batch" ] # if non-interactive root shell
+	then		
+		echo "$(crontab -lu root 2>/dev/null)" > "${REGULAR_USER_HOME_DIR}/temp_root_cronfile"
 	else
-		# if non-interactive root shell
-		echo "$(crontab -l 2>/dev/null)" > "${my_homedir}/temp_root_cronfile"
-		echo "$(crontab -u ${my_username} -l 2>/dev/null)" > "${my_homedir}/temp_user_cronfile"
+		# unexpected value for RUN_MODE, so get out now
+		msg="UNKNOWN RUN MODE. Exiting now..."
+		exit_with_error "$E_UNKNOWN_RUN_MODE" "$msg"
 	fi
 
+	# write regular users' crontab into a file that we can backup
+	echo "$(crontab -u ${REGULAR_USER} -l 2>/dev/null)" > "${REGULAR_USER_HOME_DIR}/temp_user_cronfile"
 
-	# declare sources list here UNTIL JSON CONFIGURATION
-	hostfiles_fullpaths_list=(
-	# host-specific dirs
-	"${my_homedir}/research"
-	"${my_homedir}/secure"
-	"${my_homedir}/Downloads"
-	# global configs
-	"/etc"
-	"/var/www"
-	"/var/log/syslog"
-	"${my_homedir}/.ssh/config"
-	"${my_homedir}/.config"
-	"/usr/lib/node_modules/npm/package.json"
-	"/usr/lib/node_modules/eslint/package.json"
-	# vscode workspace configs...
-	"${my_homedir}/Documents/businesses/tech_business/workspaces"
-	"${my_homedir}/bin/workspaces"
-	"${my_homedir}/Code/workspaces"
-	# git managed source code AND configs...
-	"${my_homedir}/bin/utils"
-	"${my_homedir}/Documents/businesses/tech_business/coderDojo/coderdojo-projects"
-	"${my_homedir}/Documents/businesses/tech_business/adebayo10k.github.io"
-	"${my_homedir}/Documents/businesses/tech_business/CodingActivityPathChooser"
-	"${my_homedir}/.gitconfig"
-	#"/cronjob configs..."
-	"${my_homedir}/temp_root_cronfile"
-	"${my_homedir}/temp_user_cronfile"
-	)
-	
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
-	
-	
+	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE	
 }
 
 ##########################################################################################################
@@ -879,7 +852,7 @@ function setup_dst_dir()
 
 	for dst_dir in "${mountpoint_mounted_ok_dst_dirs[@]}"
 	do
-		echo "TRYING dst dir: $dst_dir" | tee -a $LOG_FILE
+		echo "trying to find and access the dst dir: $dst_dir" | tee -a $LOG_FILE
 
 		# test dst_dir exists and accessible
 		test_dir_path_access "$dst_dir"
@@ -976,7 +949,7 @@ function traverse() {
 ###############################################################################################
 function backup_regulars_and_dirs()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
+	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 	# 
 	if [ $RUN_MODE == "interactive" ]
@@ -1032,7 +1005,7 @@ function backup_regulars_and_dirs()
 	# delete those temporary crontab -l output files
 	rm -fv "${my_homedir}/temp_root_cronfile" "${my_homedir}/temp_user_cronfile"
 	
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 }
 
