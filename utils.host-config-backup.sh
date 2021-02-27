@@ -109,8 +109,6 @@ function main
 	# count program positional parameters
 	check_no_of_program_args
 
-	echo "OUR CURRENT SHELL LEVEL IS: $SHLVL"
-
 	if [ $SHLVL -le 3 ]
 	then
 		# Display a descriptive and informational program header:
@@ -136,7 +134,7 @@ function main
 	if [ -n "$CONFIG_FILE_FULLPATH" ]
 	then
 		echo "the config is REAL"
-		#display_current_config_file
+		# open/display_current_config_file to user (if run mode is interactive) for editing option
 		import_json
 	else
 		msg="NO CONFIG FOR YOU, returned code: $return_code. Exiting now..."
@@ -282,7 +280,7 @@ function import_json()
 	########
 
 
-
+	# NOW THAT WE'VE SET LOG_FILE, WE CAN START TEEING PROGRAM OUTPUTS THERE...
 	
 	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
 	echo > "$LOG_FILE"
@@ -305,7 +303,7 @@ function import_json()
 
 function program_requirements() 
 {
-  echo "Please install jq, and curl"
+  echo "Please install jq, and curl" | tee -a $LOG_FILE
   exit 1
 }
 
@@ -323,17 +321,9 @@ function exit_with_error()
 	error_code="$1"
 	error_message="$2"
 
-	if [[ $RUN_MODE =~ "interactive" ]]
-	then
-		echo "EXIT CODE: $error_code"		
-		echo "$error_message" && echo && sleep 1
-		echo "USAGE: $(basename $0) [ABSOLUTE PATH TO CONFIGURATION FILE]?" && echo && sleep 1
-
-	else
-		echo "EXIT CODE: $error_code" >> "$LOG_FILE"
-		echo "$error_message" >> "$LOG_FILE"	
-
-	fi
+	echo "EXIT CODE: $error_code" | tee -a $LOG_FILE
+	echo "$error_message" | tee -a $LOG_FILE && echo && sleep 1
+	echo "USAGE: $(basename $0) [ABSOLUTE PATH TO CONFIGURATION FILE]?" | tee -a $LOG_FILE && echo && sleep 1
 
 	exit $error_code
 
@@ -364,7 +354,6 @@ function cleanup_and_validate_program_arguments()
 {	
 	# only the regular user can call using zero parameters as in an interactive shell
 	# the root user is non-interactive, so must provide exactly one parameter
-
 	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ]
 	then			
 		# sanitise_program_args
@@ -380,8 +369,7 @@ function cleanup_and_validate_program_arguments()
 
 	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "interactive" ]
 	then
-		# this script was called by regular user, with zero parameters
-		
+		# this script was called by regular user, with zero parameters		
 		get_path_to_config_file # get path to the configuration file from user
 	
 	else
@@ -743,14 +731,14 @@ function setup_src_dirs()
 # establish whether we're able to backup our src files to, in order of preference:
 function setup_dst_dir()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
+	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 
 	# establish whether external drive/network fs/remote fs is mounted
 	# iterate over paths/to/backups, testing whether their associated mountpoints are available
 	# if so, add path to the mountpoint_mounted_ok_dst_dirs array. We'll try to setup only these ones.
 	# for now, we'll NOT attempt to mount if not yet mounted.
 
-	echo "NETWORK_DRV_DATA_ARRAY has ${#NETWORK_DRV_DATA_ARRAY[@]} elements" #debug
+	echo "NETWORK_DRV_DATA_ARRAY has ${#NETWORK_DRV_DATA_ARRAY[@]} elements" | tee -a $LOG_FILE #debug
 
 	declare -a mountpoint_mounted_ok_dst_dirs=() # dir paths whose filesystems are actually mounted at the moment	
 
@@ -758,10 +746,10 @@ function setup_dst_dir()
 	NO_OF_PROPERTIES_PER_DRIVE=3
 	MAX_NO_OF_PROPERTIES_TO_CHECK=$((NO_OF_BACKUP_DRIVES * NO_OF_PROPERTIES_PER_DRIVE))
 	# aka maximum number of loops to do. ensures this number is exceeded, and we break out of loop, when drives with incomplete data immediately increment count by NO_OF_PROPERTIES_PER_DRIVE in order to move the loop onto the next drive.
-	echo "MAX_NO_OF_PROPERTIES_TO_CHECK: $MAX_NO_OF_PROPERTIES_TO_CHECK" && echo #debug
+	echo "MAX_NO_OF_PROPERTIES_TO_CHECK: $MAX_NO_OF_PROPERTIES_TO_CHECK" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE  #debug
 
 	TOTAL_NUMBER_OF_ARRAY_ELEMENTS=$(( ${#EXTERNAL_DRV_DATA_ARRAY[@]} + ${#LOCAL_DRV_DATA_ARRAY[@]} + ${#NETWORK_DRV_DATA_ARRAY[@]} ))  #debug
-	echo "TOTAL_NUMBER_OF_ARRAY_ELEMENTS: $TOTAL_NUMBER_OF_ARRAY_ELEMENTS" && echo #debug
+	echo "TOTAL_NUMBER_OF_ARRAY_ELEMENTS: $TOTAL_NUMBER_OF_ARRAY_ELEMENTS" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE #debug
 
 	#intialise some variables:
 	switch=1 # off
@@ -781,12 +769,12 @@ function setup_dst_dir()
 				if [ ${#EXTERNAL_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
 				then
 					# ...then, echo message about this
-					echo "Configuration data was incomplete for \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]:-'external_drive'}\". Skipping drive setup..." && echo
+					echo "Configuration data was incomplete for \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]:-'external_drive'}\". Skipping drive setup..." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					# skip to next drive by setting count = count + no_of_properties_to_skip;
 					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
 					count=$((count + no_of_properties_to_skip))
 				else
-					echo "Checking the mount state for: \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]}\" ..."
+					echo "Checking the mount state for: \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]}\" ..." | tee -a $LOG_FILE
 				fi
 								
 				;;
@@ -794,12 +782,12 @@ function setup_dst_dir()
 				then
 					# associated backup destination definitely won't be available
 					# also handles cases where mountpoint value is empty | no such directory
-					echo "\"${EXTERNAL_DRV_DATA_ARRAY[0]}\" is NOT AVAILABLE." && echo
+					echo "\"${EXTERNAL_DRV_DATA_ARRAY[0]}\" is NOT AVAILABLE." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					# set a switch for the next loop, where $mod == 2
 					switch=1 # (off)
 				else
 					# positively set the switch to 0 (on)
-					echo "mountpoint for \"${EXTERNAL_DRV_DATA_ARRAY[0]}\" is REGISTERED OK." && echo
+					echo "mountpoint for \"${EXTERNAL_DRV_DATA_ARRAY[0]}\" is REGISTERED OK." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					switch=0
 				fi
 				;;
@@ -817,21 +805,19 @@ function setup_dst_dir()
 		1)	case $mod in
 			0) 	if [ ${#LOCAL_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
 				then
-					echo "count: $count"
-					echo "Configuration data was incomplete for \"${LOCAL_DRV_DATA_ARRAY[${mod}]:-'local_drive'}\". Skipping drive setup..." && echo
+					echo "Configuration data was incomplete for \"${LOCAL_DRV_DATA_ARRAY[${mod}]:-'local_drive'}\". Skipping drive setup..." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
 					count=$((count + no_of_properties_to_skip))
-					echo "count: $count"
 				else
-					echo "Checking the mount state for: \"${LOCAL_DRV_DATA_ARRAY[${mod}]}\" ..."
+					echo "Checking the mount state for: \"${LOCAL_DRV_DATA_ARRAY[${mod}]}\" ..." | tee -a $LOG_FILE
 				fi
 				;;
 			1) 	if ! mountpoint -q "${LOCAL_DRV_DATA_ARRAY[${mod}]}" 2>/dev/null
 				then					
-					echo "\"${LOCAL_DRV_DATA_ARRAY[0]}\" is NOT AVAILABLE." && echo
+					echo "\"${LOCAL_DRV_DATA_ARRAY[0]}\" is NOT AVAILABLE." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					switch=1
 				else
-					echo "mountpoint for \"${LOCAL_DRV_DATA_ARRAY[0]}\" is REGISTERED OK." && echo
+					echo "mountpoint for \"${LOCAL_DRV_DATA_ARRAY[0]}\" is REGISTERED OK." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					switch=0
 				fi
 				;;
@@ -847,20 +833,19 @@ function setup_dst_dir()
 		2)	case $mod in
 			0) 	if [ ${#NETWORK_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
 				then
-					echo "Configuration data was incomplete for \"${NETWORK_DRV_DATA_ARRAY[${mod}]:-'network_drive'}\". Skipping drive setup..." && echo
+					echo "Configuration data was incomplete for \"${NETWORK_DRV_DATA_ARRAY[${mod}]:-'network_drive'}\". Skipping drive setup..." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
 					count=$((count + no_of_properties_to_skip))
 				else
-					echo "Checking the mount state for: \"${NETWORK_DRV_DATA_ARRAY[${mod}]}\" ..."
+					echo "Checking the mount state for: \"${NETWORK_DRV_DATA_ARRAY[${mod}]}\" ..." | tee -a $LOG_FILE
 				fi
 				;;
 			1) 	if ! mountpoint -q "${NETWORK_DRV_DATA_ARRAY[${mod}]}" 2>/dev/null
 				then
-					echo "count: $count"
-					echo "\"${NETWORK_DRV_DATA_ARRAY[0]:-'network_drive'}\" is NOT AVAILABLE." && echo
+					echo "\"${NETWORK_DRV_DATA_ARRAY[0]:-'network_drive'}\" is NOT AVAILABLE." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					switch=1
 				else
-					echo "mountpoint for \"${NETWORK_DRV_DATA_ARRAY[0]:-'network_drive'}\" is REGISTERED OK." && echo
+					echo "mountpoint for \"${NETWORK_DRV_DATA_ARRAY[0]:-'network_drive'}\" is REGISTERED OK." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					switch=0
 				fi
 				;;
@@ -882,8 +867,8 @@ function setup_dst_dir()
 	done
 
 
-	echo "${mountpoint_mounted_ok_dst_dirs[@]}"
-	echo "${#mountpoint_mounted_ok_dst_dirs[@]}"
+	echo "HAS GOOD MOUNTPOINT(S): ${mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
+	echo "HOW MANY WITH GOOD MOUNTPOINT(S): ${#mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
 
 	#exit 0 # debug
 
@@ -894,7 +879,7 @@ function setup_dst_dir()
 
 	for dst_dir in "${mountpoint_mounted_ok_dst_dirs[@]}"
 	do
-		echo "TRYING dst dir: $dst_dir"
+		echo "TRYING dst dir: $dst_dir" | tee -a $LOG_FILE
 
 		# test dst_dir exists and accessible
 		test_dir_path_access "$dst_dir"
@@ -902,7 +887,7 @@ function setup_dst_dir()
 		if [ $return_code -eq 0 ]
 		then
 			# dst_dir found and accessible ok
-			echo "The dst_dir filepath EXISTS and WORKS OK" && echo
+			echo "The dst_dir filepath EXISTS and WORKS OK" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 			dst_dir_current_fullpath="$dst_dir"
 			setup_outcome=0 #success
 			break
@@ -912,9 +897,9 @@ function setup_dst_dir()
 			# dst_dir did not exist
 			echo "The dst HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
 			
-			mkdir "$dst_dir" >/dev/null >&1 && echo "Creating the directory now..." && echo && \
+			mkdir "$dst_dir" >/dev/null >&1 && echo "Creating the directory now..." | tee -a $LOG_FILE && echo && \
 			dst_dir_current_fullpath="$dst_dir" && setup_outcome=0 && break \
-			|| setup_outcome=1 && echo "Directory creation failed for:" && echo "$dst_dir" && echo && continue			
+			|| setup_outcome=1 && echo "Directory creation failed for:" | tee -a $LOG_FILE && echo "$dst_dir" && echo && continue			
 
 		else
 			# dst_dir found but not accessible
@@ -933,7 +918,7 @@ function setup_dst_dir()
 		exit_with_error "$E_UNKNOWN_ERROR" "$msg"
 	fi
 			
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 }
 
