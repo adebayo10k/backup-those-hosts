@@ -745,16 +745,14 @@ function setup_dst_dir()
 {
 	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
-	setup_outcome=42 #initialise to fail state (!= 0)
-
 	# establish whether external drive/network fs/remote fs is mounted
 	# iterate over paths/to/backups, testing whether their associated mountpoints are available
-	# if so, add path to the AVAILABLE_DST_DIRS array. We'll try to setup only these ones.
+	# if so, add path to the mountpoint_mounted_ok_dst_dirs array. We'll try to setup only these ones.
 	# for now, we'll NOT attempt to mount if not yet mounted.
 
 	echo "NETWORK_DRV_DATA_ARRAY has ${#NETWORK_DRV_DATA_ARRAY[@]} elements" #debug
 
-	declare -a AVAILABLE_DST_DIRS=() # dir paths whose filesystems are actually mounted at the moment	
+	declare -a mountpoint_mounted_ok_dst_dirs=() # dir paths whose filesystems are actually mounted at the moment	
 
 	NO_OF_BACKUP_DRIVES=3
 	NO_OF_PROPERTIES_PER_DRIVE=3
@@ -807,8 +805,8 @@ function setup_dst_dir()
 				;;
 			2)	if [ "$switch" -eq 0 ]
 				then
-					# append AVAILABLE_DST_DIRS array with backup directory path
-					AVAILABLE_DST_DIRS+=( "${EXTERNAL_DRV_DATA_ARRAY[${mod}]}" )
+					# append mountpoint_mounted_ok_dst_dirs array with backup directory path
+					mountpoint_mounted_ok_dst_dirs+=( "${EXTERNAL_DRV_DATA_ARRAY[${mod}]}" )
 					# reset the switch to off
 					switch=1
 				fi
@@ -839,7 +837,7 @@ function setup_dst_dir()
 				;;
 			2)	if [ "$switch" -eq 0 ]
 				then
-					AVAILABLE_DST_DIRS+=( "${LOCAL_DRV_DATA_ARRAY[${mod}]}" )
+					mountpoint_mounted_ok_dst_dirs+=( "${LOCAL_DRV_DATA_ARRAY[${mod}]}" )
 					switch=1
 				fi
 				;;
@@ -868,7 +866,7 @@ function setup_dst_dir()
 				;;
 			2)	if [ "$switch" -eq 0 ]
 				then
-					AVAILABLE_DST_DIRS+=( "${NETWORK_DRV_DATA_ARRAY[${mod}]}" )
+					mountpoint_mounted_ok_dst_dirs+=( "${NETWORK_DRV_DATA_ARRAY[${mod}]}" )
 					switch=1
 				fi
 				;;
@@ -884,13 +882,17 @@ function setup_dst_dir()
 	done
 
 
-	echo "${AVAILABLE_DST_DIRS[@]}"
-	echo "${#AVAILABLE_DST_DIRS[@]}"
+	echo "${mountpoint_mounted_ok_dst_dirs[@]}"
+	echo "${#mountpoint_mounted_ok_dst_dirs[@]}"
 
-	exit 0 # debug
+	#exit 0 # debug
 
+	# now we know which dst dirs are at least on drives that are currently mounted,
+	# we can further check that they're accessible and try to assign them to dst_dir_current_fullpath,
+	# one after the other
+	setup_outcome=42 #initialise to fail state (!= 0)
 
-	for dst_dir in "$DST_BACKUP_DIR_EXTERNAL" "$DST_BACKUP_DIR_LOCAL"
+	for dst_dir in "${mountpoint_mounted_ok_dst_dirs[@]}"
 	do
 		echo "TRYING dst dir: $dst_dir"
 
@@ -916,7 +918,8 @@ function setup_dst_dir()
 
 		else
 			# dst_dir found but not accessible
-			msg="The dst DIRECTORY filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
+			# stopping execution mid-loop because this should NEVER happen on my own system
+			msg="WEIRD, SO LET'S STOP. The dst DIRECTORY filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
 			exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
 		fi
 
