@@ -64,7 +64,8 @@
         "/home/user/temp_user_cronfile"
       ],
       "excluded_file_patterns": [
-        "/home/user/.config/Code"
+        "/home/user/.config/Code",
+        "/home/user/.config/moreCode"
       ],
       "log_file": "/home/user/path/to/logfile"
     },
@@ -84,7 +85,7 @@
         "/home/user/bin/paths/to/my/projects/git-project-004"
       ],
       "excluded_file_patterns": [
-        "/.git"
+        "/.git/"
       ],
       "log_file": "/home/user/path/to/logfile"
     }
