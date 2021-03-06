@@ -74,9 +74,7 @@ function main
 	declare -a EXTERNAL_DRV_DATA_ARRAY=()
 	declare -a LOCAL_DRV_DATA_ARRAY=()
 	declare -a NETWORK_DRV_DATA_ARRAY=()
-	
-	#DST_BACKUP_DIR_EXTERNAL=
-	#DST_BACKUP_DIR_LOCAL=
+		
 	dst_dir_current_fullpath= # the first destination backup directory found to be accessible ok
 
 	BACKUP_DESCRIPTION=
@@ -86,12 +84,10 @@ function main
 	declare -a EXCLUDED_FILE_PATTERN_LIST=()
 	LOG_FILE=
 	
-	ABS_FILEPATH_REGEX='^(/{1}[A-Za-z0-9\.\ _~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
-	REL_FILEPATH_REGEX='^(/?[A-Za-z0-9\.\ _~:@-]+)+(/)?$' # relative file part-path, before trimming
+	ABS_FILEPATH_REGEX='^(/{1}[A-Za-z0-9._~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
+	REL_FILEPATH_REGEX='^(/?[A-Za-z0-9._~:@-]+)+(/)?$' # relative file part-path, before trimming
 
 	test_line="" # global...
-
-
 	
 	
 	###############################################################################################
@@ -109,6 +105,9 @@ function main
 	# count program positional parameters
 	check_no_of_program_args
 
+	# check program dependencies and requirements
+	check_program_requirements
+
 	if [ $SHLVL -le 3 ]
 	then
 		# Display a descriptive and informational program header:
@@ -120,6 +119,8 @@ function main
 			get_user_permission_to_proceed
 		fi
 	fi
+
+	#exit 0 # debug
 
 	# cleanup and validate, test program positional parameters
 	cleanup_and_validate_program_arguments
@@ -165,6 +166,8 @@ function main
 function import_json() 
 {
 	#
+	######## FOR THE SPECIFIC HOST WE'RE ON...
+
 	EXTERNAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst_backup_dir_set[] | select(.location=="external_drive") | .[]') 
 
 	echo "EXTERNAL_DRV_DATA_STRING: $EXTERNAL_DRV_DATA_STRING"
@@ -197,28 +200,8 @@ function import_json()
 	echo "${NETWORK_DRV_DATA_ARRAY[@]}"
 	echo && echo
 
-	## easier to assign values to program variables using this local bash array structure
-	#declare -a LOCAL_DRV_DATA_ARRAY=( $LOCAL_DRV_DATA_STRING )
-	#
-	##
-	#DST_BACKUP_DIR_EXTERNAL="${HOST_BACKUP_DATA_ARRAY[1]}"
-	#DST_BACKUP_DIR_LOCAL="${HOST_BACKUP_DATA_ARRAY[2]}"
-	## 	# TODO: generalise cleanup_and_validate_program_arguments
-#
-	#
-	#echo "$DST_BACKUP_DIR_EXTERNAL"
-	#echo "$DST_BACKUP_DIR_LOCAL"
-	#echo && echo "###########" && echo
-
-	########
-
-	# jq -r leaves sentences unqoted, so data would have to escape-quote
-	#BACKUP_SCHEME_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .[]')
-
-	#echo $BACKUP_SCHEME_DATA_STRING && echo
-
-
-
+	
+	######## THE TYPE OF BACKUP WE'RE DOING...
 	######## FIRST... ASSIGNING THE JSON ARRAY DATA TO CORRESPONDING BASH ARRAY DATA STRUCTURES...
 
 
@@ -246,7 +229,7 @@ function import_json()
 	echo && echo "###########" && echo
 
 
-
+	######## THE TYPE OF BACKUP WE'RE DOING...
 	######## NEXT... ASSIGNING THE JSON VALUES DATA TO CORRESPONDING BASH SCALAR VARIABLES...
 
 
@@ -287,7 +270,8 @@ function import_json()
 	# NOW THAT WE'VE SET LOG_FILE, WE CAN START TEEING PROGRAM OUTPUTS THERE...
 	
 	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
-	echo > "$LOG_FILE"
+	#echo -n > "$LOG_FILE"
+	echo "$(date)" > "$LOG_FILE"
 	echo "THIS_HOST: $THIS_HOST" >> "$LOG_FILE" # debug
 	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
 	echo "PROGRAM_PARAM_1: $PROGRAM_PARAM_1" >> "$LOG_FILE" # debug	
@@ -305,23 +289,28 @@ function import_json()
 
 ##############################################################################################
 
-function program_requirements() 
+function check_program_requirements() 
 {
-  echo "Please install jq, and curl" | tee -a $LOG_FILE
-  exit 1
-}
+	declare -a program_dependencies=(jq curl cowsay vi vim)
 
-## check requirements
-#for program_name in jq curl
-#do
-#  which $program_name >/dev/null 2>&1 || program_requirements
-#done
+	for program_name in ${program_dependencies[@]}
+	do
+	  if type $program_name >/dev/null 2>&1
+		then
+			echo "$program_name already installed OK" | tee -a $LOG_FILE
+		else
+			echo "${program_name} is NOT installed." | tee -a $LOG_FILE
+			echo "program dependencies are: ${program_dependencies[@]}" | tee -a $LOG_FILE
+  		msg="Required program not found. Exiting now..."
+			exit_with_error "$E_REQUIRED_PROGRAM_NOT_FOUND" "$msg"
+		fi
+	done
+}
 
 ###############################################################################################
 # exit program with non-zero exit code
 function exit_with_error()
-{
-	
+{	
 	error_code="$1"
 	error_message="$2"
 
@@ -330,7 +319,6 @@ function exit_with_error()
 	echo "USAGE: $(basename $0) [ABSOLUTE PATH TO CONFIGURATION FILE]?" | tee -a $LOG_FILE && echo && sleep 1
 
 	exit $error_code
-
 }
 
 ###############################################################################################
@@ -490,6 +478,11 @@ function display_program_header(){
 	echo "The script filename is:			$(basename $0)" && echo
 
 	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
+
+	if type cowsay > /dev/null 2>&1
+	then
+		cowsay "YES, REMEMBER TO RUN THIS PROGRAM ON EVERY HOST!"
+	fi
 		
 }
 
@@ -1012,7 +1005,7 @@ function backup_regulars_and_dirs()
 
 ###############################################################################################
 # chown (but not chmod) privilege level of all backup dir contents.
-# why? reg user doesn't need to access them, and we've got sudo tar if needed.
+# why? reg user doesn't need to access them, and we've got sudo tar if needed to prevent inadvertent linking/referencing. .
 # preserving ownership etc. might also have more fidelity, and enable any restore operations.
 function change_file_ownerships()
 {
