@@ -33,7 +33,7 @@
 
 # To add a new file path to this program, we just add it to the json configuration file.
 
-# NOTE: new cp --update strategy assumes that existing source files get modified or not, but don't get deleted.
+# NOTE: new cp --update strategy assumes that existing source files get modified (or not), but don't get deleted.
 # ...so need a way to get rid of last CURRENT backup of a deleted file.
 
 # host authorisation is moot because configuration file specifies host-specific configuration parameters 
@@ -268,9 +268,8 @@ function import_json()
 
 
 	# NOW THAT WE'VE SET LOG_FILE, WE CAN START TEEING PROGRAM OUTPUTS THERE...
-	
-	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING"
-	#echo -n > "$LOG_FILE"
+
+	touch "$LOG_FILE" && chown ${REGULAR_USER}:${REGULAR_USER} "${LOG_FILE}"
 	echo "$(date)" > "$LOG_FILE"
 	echo "THIS_HOST: $THIS_HOST" >> "$LOG_FILE" # debug
 	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
@@ -289,9 +288,10 @@ function import_json()
 
 ##############################################################################################
 
+# check whether dependencies are already installed ok on this system
 function check_program_requirements() 
 {
-	declare -a program_dependencies=(jq curl cowsay vi vim)
+	declare -a program_dependencies=(jq cowsay vi)
 
 	for program_name in ${program_dependencies[@]}
 	do
