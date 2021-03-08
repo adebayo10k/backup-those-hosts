@@ -316,7 +316,7 @@ function exit_with_error()
 
 	echo "EXIT CODE: $error_code" | tee -a $LOG_FILE
 	echo "$error_message" | tee -a $LOG_FILE && echo && sleep 1
-	echo "USAGE: $(basename $0) [ABSOLUTE PATH TO CONFIGURATION FILE]?" | tee -a $LOG_FILE && echo && sleep 1
+	echo "USAGE: $(basename $0) [ABSOLUTE_FILEPATH]" | tee -a $LOG_FILE && echo && sleep 1
 
 	exit $error_code
 }
