@@ -287,11 +287,12 @@ function import_json()
 }
 
 ##############################################################################################
-
 # check whether dependencies are already installed ok on this system
 function check_program_requirements() 
 {
-	declare -a program_dependencies=(jq cowsay vi)
+	# programs must all be in the PATH for both regular and root user.
+	# could use their absolute paths, but these may vary with host system 
+	declare -a program_dependencies=(jq vi)
 
 	for program_name in ${program_dependencies[@]}
 	do
@@ -474,14 +475,14 @@ function display_program_header(){
 
 	# REPORT SOME SCRIPT META-DATA
 	echo "The absolute path to this script is:	$0"
-	echo "The script root directory is:		$(dirname $0)"
+	echo "The script directory is:		$(dirname $0)"
 	echo "The script filename is:			$(basename $0)" && echo
 
 	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
 
-	if type cowsay > /dev/null 2>&1
+	if type cowsay > /dev/null 2>&1 # false for root, as not in roots' PATH
 	then
-		cowsay "YES, REMEMBER TO RUN THIS PROGRAM ON EVERY HOST!"
+		cowsay "YES, ${USER}!"
 	fi
 		
 }
