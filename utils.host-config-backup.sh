@@ -6,12 +6,14 @@
 #: Description	:use to create backup copy (ie one-way) of various system-specific files
 #: Description	:such as configuration files that aren't covered by the routine backups
 #: Description	:of the working directories. files are --update copied to external device if
-#: Description	:possible, else to a local sychronised directory.
+#: Description	:possible, else to a local synchronised directory.
 #: Options		:None
 
 ###############################################################################################
-# This program is concerned only with files that are not synchronised along with the frequently mutating files, \
-# since they are DIFFERENT on each host and/or they're not accessible by regular user permissions. \
+# This program is concerned only with files that I do not routinely synchronise,
+# plus those frequently mutating files, \
+# plus those files that are DIFFERENT on each host, \
+# plus those files that are not accessible by regular user permissions. \
 # For example:
 	# configuration files
 	# HOME, Downloads... dirs
@@ -22,7 +24,7 @@
 # This program is only concerned with getting current copies of these files onto external drive, or \
 # into sync-ready position on respective hosts. That's it. CRON makes this happen daily.
 
-# The program branches based on whether interactive shell.
+# The program branches based on whether interactive shell or batch-mode.
 
 # on bash:
 # m h  dom mon dow   command
@@ -120,10 +122,8 @@ function main
 		fi
 	fi
 
-	#exit 0 # debug
-
 	# cleanup and validate, test program positional parameters
-	cleanup_and_validate_program_arguments
+  cleanup_and_validate_program_arguments
 	
 	
 	###############################################################################################
@@ -133,7 +133,7 @@ function main
 	if [ -n "$CONFIG_FILE_FULLPATH" ] # should have been received as a validated program argument
 	then
 		echo "the config is REAL"
-		# open/display_current_config_file to user (if run mode is interactive) for editing option
+		# TODO: open/display_current_config_file to user (if run mode is interactive) for editing option?
 		import_json
 	else
 		msg="NO CONFIG FOR YOU. Exiting now..."
@@ -144,8 +144,6 @@ function main
 	setup_dst_dir
 
 	create_last_minute_src_files
-
-	#exit 0 # debug
 
 	backup_regulars_and_dirs
 
@@ -174,7 +172,7 @@ function import_json()
 	echo && echo
 
 	# note: the sequence of data in these arrays has been designed to suit the order in which we'll soon process them in setup_dst_dir().
-	## 	# TODO: generalise cleanup_and_validate_program_arguments
+	## 	# TODO: generalise TODO: cleanup_and_validate_program_arguments
 	EXTERNAL_DRV_DATA_ARRAY=( $EXTERNAL_DRV_DATA_STRING )
 
 	echo "${EXTERNAL_DRV_DATA_ARRAY[@]}"
@@ -222,10 +220,8 @@ function import_json()
 
 	echo "$EXCLUDED_FILE_PATTERN_STRING"
 
-	#exit 0 # debug
-
 	EXCLUDED_FILE_PATTERN_LIST=( $EXCLUDED_FILE_PATTERN_STRING ) # this array may not be needed
-	# cleanup_and_validate_program_arguments
+	# TODO: cleanup_and_validate_program_arguments
 	echo && echo "###########" && echo
 
 
@@ -236,7 +232,7 @@ function import_json()
 
 	BACKUP_DESCRIPTION=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .backup_description')
 
-	# cleanup_and_validate_program_arguments
+	# TODO: cleanup_and_validate_program_arguments
 	echo $BACKUP_DESCRIPTION
 	echo && echo "###########" && echo
 
@@ -244,7 +240,7 @@ function import_json()
 
 	REGULAR_USER=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .regular_user')
 
-	# cleanup_and_validate_program_arguments
+	# TODO: cleanup_and_validate_program_arguments
 	echo $REGULAR_USER
 	echo && echo "###########" && echo
 
@@ -252,7 +248,7 @@ function import_json()
 
 	REGULAR_USER_HOME_DIR=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .regular_user_home_dir')
 
-	# cleanup_and_validate_program_arguments
+	# TODO: cleanup_and_validate_program_arguments
 	echo $REGULAR_USER_HOME_DIR
 	echo && echo "###########" && echo
 
@@ -260,7 +256,7 @@ function import_json()
 
 	LOG_FILE=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup_schemes[] | select(.backup_type==$BACKUP_SCHEME_TYPE) | .log_file')
 
-	# TODO: generalise cleanup_and_validate_program_arguments
+	# TODO: generalise TODO: cleanup_and_validate_program_arguments
 	echo $LOG_FILE
 	echo && echo "###########" && echo
 
@@ -272,17 +268,17 @@ function import_json()
 	touch "$LOG_FILE" && chown ${REGULAR_USER}:${REGULAR_USER} "${LOG_FILE}"
 	echo "$(date)" > "$LOG_FILE"
 	echo "THIS_HOST: $THIS_HOST" >> "$LOG_FILE" # debug
-	echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
-	echo "PROGRAM_PARAM_1: $PROGRAM_PARAM_1" >> "$LOG_FILE" # debug	
+	#echo "ALL_THE_PARAMETERS_STRING: $ALL_THE_PARAMETERS_STRING" >> "$LOG_FILE" # debug
+	#echo "PROGRAM_PARAM_1: $PROGRAM_PARAM_1" >> "$LOG_FILE" # debug	
 	#echo "program:" && echo "$0" && exit 0 # debug
 	#output=$(dummy 2)
 	#echo $output && exit 0 # debug
-	echo $(whoami) >> "$LOG_FILE"
-	echo $(pwd) >> "$LOG_FILE"
+	echo >> "$LOG_FILE"
+	echo "Program being run by user: $(whoami)" >> "$LOG_FILE"
+	echo "Current working directory: $(pwd)" >> "$LOG_FILE"
 	echo "RUN_MODE: $RUN_MODE" >> "$LOG_FILE" # debug
-	#exit 0 # debug
 
-
+	echo >> "$LOG_FILE"
 
 }
 
@@ -291,6 +287,7 @@ function import_json()
 function check_program_requirements() 
 {
 	# programs must all be in the PATH for both regular and root user.
+	# they're not built-ins
 	# could use their absolute paths, but these may vary with host system 
 	declare -a program_dependencies=(jq vi)
 
@@ -298,10 +295,10 @@ function check_program_requirements()
 	do
 	  if type $program_name >/dev/null 2>&1
 		then
-			echo "$program_name already installed OK" | tee -a $LOG_FILE
+			echo "$program_name already installed OK"
 		else
-			echo "${program_name} is NOT installed." | tee -a $LOG_FILE
-			echo "program dependencies are: ${program_dependencies[@]}" | tee -a $LOG_FILE
+			echo "${program_name} is NOT installed."
+			echo "program dependencies are: ${program_dependencies[@]}"
   		msg="Required program not found. Exiting now..."
 			exit_with_error "$E_REQUIRED_PROGRAM_NOT_FOUND" "$msg"
 		fi
@@ -323,22 +320,15 @@ function exit_with_error()
 }
 
 ###############################################################################################
+# quick check that number of program arguments is within the valid range
 function check_no_of_program_args()
-{
-	#echo && echo "Entered into function ${FUNCNAME[0]}" && echo
-
-	#echo "ACTUAL_NO: $ACTUAL_NO_OF_PROGRAM_PARAMETERS"
-	
+{	
 	# establish that number of parameters is valid
 	if [[ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -gt $MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS ]]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
 		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
 	fi
-	
-
-	#echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
-
 }
 
 ###############################################################################################
@@ -353,7 +343,7 @@ function cleanup_and_validate_program_arguments()
 		sanitise_absolute_path_value "$PROGRAM_PARAM_1"
 		#echo "test_line has the value: $test_line"
 		PROGRAM_PARAM_TRIMMED=$test_line
-		validate_program_args "$PROGRAM_PARAM_TRIMMED"			
+		validate_absolute_path_value "$PROGRAM_PARAM_TRIMMED"			
 			
 	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "batch" ]
 	then
@@ -397,7 +387,7 @@ function get_path_to_config_file()
 		#echo "test_line has the value: $test_line"
 		path_to_config_file=$test_line
 
-		validate_program_args "$path_to_config_file"		
+		validate_absolute_path_value "$path_to_config_file"		
 
 	else
 		# 
@@ -406,7 +396,7 @@ function get_path_to_config_file()
 	fi
 }
 ###############################################################################################
-function validate_program_args()
+function validate_absolute_path_value()
 {
 	#echo && echo "Entered into function ${FUNCNAME[0]}" && echo
 
@@ -475,14 +465,14 @@ function display_program_header(){
 
 	# REPORT SOME SCRIPT META-DATA
 	echo "The absolute path to this script is:	$0"
-	echo "The script directory is:		$(dirname $0)"
-	echo "The script filename is:			$(basename $0)" && echo
+	#echo "The script directory is:		$(dirname $0)"
+	#echo "The script filename is:			$(basename $0)" && echo
 
 	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
 
-	if type cowsay > /dev/null 2>&1 # false for root, as not in roots' PATH
+	if type cowsay > /dev/null 2>&1 # false for root, if not in roots' PATH
 	then
-		cowsay "YES, ${USER}!"
+		cowsay "Hello, ${USER}!"
 	fi
 		
 }
@@ -501,7 +491,7 @@ function get_user_permission_to_proceed(){
 			echo "Goodbye!" && sleep 1
 			exit 0
 				;;
-	*) 		echo "You're IN..." && echo && sleep 1
+	*) 		echo "You're IN...Welcome!" && echo && sleep 1
 				;;
 	esac 
 }
@@ -678,7 +668,7 @@ function test_dir_path_access
 # do this until there's a better way of including them in the src_files configuration
 function create_last_minute_src_files()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
+	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 
 	# # write roots' crontab into a file that we can backup
 	if [ $RUN_MODE == "interactive" ] # if interactive shell
@@ -696,21 +686,22 @@ function create_last_minute_src_files()
 	# write regular users' crontab into a file that we can backup
 	echo "$(crontab -u ${REGULAR_USER} -l 2>/dev/null)" > "${REGULAR_USER_HOME_DIR}/temp_user_cronfile"
 
-	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE	
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE	
 }
 
 ##########################################################################################################
-# establish whether we're able to backup our src files to, in order of preference:
+# establish whether we're able to backup our src files to configured drives, in order of preference:
 function setup_dst_dir()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
+	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
+	echo >> "$LOG_FILE"
 
 	# establish whether external drive/network fs/remote fs is mounted
 	# iterate over paths/to/backups, testing whether their associated mountpoints are available
 	# if so, add path to the mountpoint_mounted_ok_dst_dirs array. We'll try to setup only these ones.
 	# for now, we'll NOT attempt to mount if not yet mounted.
 
-	echo "NETWORK_DRV_DATA_ARRAY has ${#NETWORK_DRV_DATA_ARRAY[@]} elements" | tee -a $LOG_FILE #debug
+	#echo "NETWORK_DRV_DATA_ARRAY has ${#NETWORK_DRV_DATA_ARRAY[@]} elements" | tee -a $LOG_FILE #debug
 
 	declare -a mountpoint_mounted_ok_dst_dirs=() # dir paths whose filesystems are actually mounted at the moment	
 
@@ -839,17 +830,20 @@ function setup_dst_dir()
 	done
 
 
-	echo "HAS GOOD MOUNTPOINT(S): ${mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
-	echo "HOW MANY WITH GOOD MOUNTPOINT(S): ${#mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
+	echo "DST_DIRS WITH GOOD MOUNTPOINT(S): ${mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
+	echo "HOW MANY DST_DIRS WITH GOOD MOUNTPOINT(S): ${#mountpoint_mounted_ok_dst_dirs[@]}" | tee -a $LOG_FILE
+
+	echo >> "$LOG_FILE"
 
 	# now we know which dst dirs are at least on drives that are currently mounted,
-	# we can further check that they're accessible and try to assign them to dst_dir_current_fullpath,
-	# one after the other
+	# we can further check that they're accessible and try to assign them to the dst_dir_current_fullpath variable,
+	# trying them one after the other, first winner takes it
 	setup_outcome=42 #initialise to fail state (!= 0)
 
 	for dst_dir in "${mountpoint_mounted_ok_dst_dirs[@]}"
 	do
-		echo "trying to find and access the dst dir: $dst_dir" | tee -a $LOG_FILE
+		echo "Now trying to find and access the dst dir: $dst_dir" | tee -a $LOG_FILE
+		echo >> "$LOG_FILE"
 
 		# test dst_dir exists and accessible
 		test_dir_path_access "$dst_dir"
@@ -857,7 +851,7 @@ function setup_dst_dir()
 		if [ $return_code -eq 0 ]
 		then
 			# dst_dir found and accessible ok
-			echo "The dst_dir filepath EXISTS and WORKS OK" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
+			echo "That dst_dir filepath EXISTS and WORKS OK" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 			dst_dir_current_fullpath="$dst_dir"
 			setup_outcome=0 #success
 			break
@@ -865,7 +859,7 @@ function setup_dst_dir()
 		elif [ $return_code -eq $E_REQUIRED_FILE_NOT_FOUND ]
 		then
 			# dst_dir did not exist
-			echo "The dst HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
+			echo "That dst HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
 			
 			mkdir "$dst_dir" >/dev/null >&1 && echo "Creating the directory now..." | tee -a $LOG_FILE && echo && \
 			dst_dir_current_fullpath="$dst_dir" && setup_outcome=0 && break \
@@ -888,7 +882,7 @@ function setup_dst_dir()
 		exit_with_error "$E_UNKNOWN_ERROR" "$msg"
 	fi
 			
-	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 }
 
@@ -946,7 +940,7 @@ function traverse() {
 ###############################################################################################
 function backup_regulars_and_dirs()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
+	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 	# 
 	if [ $RUN_MODE == "interactive" ]
@@ -1000,7 +994,7 @@ function backup_regulars_and_dirs()
 	# delete those temporary crontab -l output files
 	rm -fv "${REGULAR_USER_HOME_DIR}/temp_root_cronfile" "${REGULAR_USER_HOME_DIR}/temp_user_cronfile"
 	
-	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 }
 
@@ -1010,7 +1004,7 @@ function backup_regulars_and_dirs()
 # preserving ownership etc. might also have more fidelity, and enable any restore operations.
 function change_file_ownerships()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
+	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 
 	if [ $RUN_MODE == "interactive" ]
 	then
@@ -1019,14 +1013,14 @@ function change_file_ownerships()
 		chown -R ${REGULAR_USER}:${REGULAR_USER} "${dst_dir_current_fullpath}"
 	fi	
 	
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
 }
 
 ###############################################################################################
 # if we have an interactive shell, give user a summary of dir sizes in the dst dir
 function report_summary()
 {
-	echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
+	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 
 	for file in "${dst_dir_current_fullpath}"/*
 	do
@@ -1037,27 +1031,7 @@ function report_summary()
 		fi
 	done
 
-
-	echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
-
-}
-
-###############################################################################################
-function dummy()
-{
-	echo && echo "Entered into function ${FUNCNAME[0]}" && echo
-
-	n=$1
-	echo "data $(($n*6)) ssh:5490"
-
-
-	#echo -e "\e[32msetup variables\e[0m"
-	#echo -e "\e[32m\$cp template-script.sh new-script.sh\e[0m"
-	#echo -e "\033[33mREMEMBER TO .... oh crap!\033[0m" && sleep 4 && echo
-#
-
-	echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
-
+	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 }
 
 ###############################################################################################
