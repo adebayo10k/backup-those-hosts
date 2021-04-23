@@ -39,6 +39,9 @@
 # ...so need a way to get rid of last CURRENT backup of a deleted file.
 
 # host authorisation is moot because configuration file specifies host-specific configuration parameters 
+
+# NOTE: jq does not handle hyphenated filter argument quoting and faffing. Think I read something about that
+# in the docs. Better to just use camelCased JSON property names universally.
 ###############################################################################################
 
 function main 
@@ -166,7 +169,7 @@ function import_json()
 	#
 	######## FOR THE SPECIFIC HOST WE'RE ON...
 
-	EXTERNAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst-backup-dir-set[] | select(.location=="external_drive") | .[]') 
+	EXTERNAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dstBackupDirSet[] | select(.location=="external_drive") | .[]') 
 
 	echo "EXTERNAL_DRV_DATA_STRING: $EXTERNAL_DRV_DATA_STRING"
 	echo && echo
@@ -178,7 +181,7 @@ function import_json()
 	echo "${EXTERNAL_DRV_DATA_ARRAY[@]}"
 	echo && echo
 
-	LOCAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst-backup-dir-set[] | select(.location=="local_drive") | .[]') 
+	LOCAL_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dstBackupDirSet[] | select(.location=="local_drive") | .[]') 
 
 	echo "LOCAL_DRV_DATA_STRING: $LOCAL_DRV_DATA_STRING"
 	echo && echo
@@ -188,7 +191,7 @@ function import_json()
 	echo "${LOCAL_DRV_DATA_ARRAY[@]}"
 	echo && echo
 
-	NETWORK_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dst-backup-dir-set[] | select(.location=="network_drive") | .[]') 
+	NETWORK_DRV_DATA_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg THIS_HOST "$THIS_HOST" '.hosts[] | select(.hostname==$THIS_HOST) | .dstBackupDirSet[] | select(.location=="network_drive") | .[]') 
 
 	echo "NETWORK_DRV_DATA_STRING: $NETWORK_DRV_DATA_STRING"
 	echo && echo
@@ -203,7 +206,7 @@ function import_json()
 	######## FIRST... ASSIGNING THE JSON ARRAY DATA TO CORRESPONDING BASH ARRAY DATA STRUCTURES...
 
 
-	SRC_FILES_FULLPATHS_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup-schemes[] | select(.backup-type==$BACKUP_SCHEME_TYPE) | .src-files-fullpaths[]')
+	SRC_FILES_FULLPATHS_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backupSchemes[] | select(.backupType==$BACKUP_SCHEME_TYPE) | .srcFilesFullpaths[]')
 
 	echo $SRC_FILES_FULLPATHS_STRING
 
@@ -213,7 +216,7 @@ function import_json()
 	########
 
 	#-j option doesn't print newline after each output - so we can pattern match single string
-	EXCLUDED_FILE_PATTERN_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -j --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup-schemes[] | select(.backup-type==$BACKUP_SCHEME_TYPE) | .excluded-file-patterns[]')
+	EXCLUDED_FILE_PATTERN_STRING=$(cat "$CONFIG_FILE_FULLPATH" | jq -j --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backupSchemes[] | select(.backupType==$BACKUP_SCHEME_TYPE) | .excludedFilePatterns[]')
 
 	# remove spaces to match a single pattern
 	#EXCLUDED_FILE_PATTERN_STRING=$(echo "$EXCLUDED_FILE_PATTERN_STRING" | sed 's/[[:space:]]//g')
@@ -230,7 +233,7 @@ function import_json()
 
 
 
-	BACKUP_DESCRIPTION=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup-schemes[] | select(.backup-type==$BACKUP_SCHEME_TYPE) | .backup-description')
+	BACKUP_DESCRIPTION=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backupSchemes[] | select(.backupType==$BACKUP_SCHEME_TYPE) | .backupDescription')
 
 	# TODO: cleanup_and_validate_program_arguments
 	echo $BACKUP_DESCRIPTION
@@ -238,7 +241,7 @@ function import_json()
 
 	########
 
-	REGULAR_USER=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup-schemes[] | select(.backup-type==$BACKUP_SCHEME_TYPE) | .regular-user')
+	REGULAR_USER=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backupSchemes[] | select(.backupType==$BACKUP_SCHEME_TYPE) | .regularUser')
 
 	# TODO: cleanup_and_validate_program_arguments
 	echo $REGULAR_USER
@@ -246,7 +249,7 @@ function import_json()
 
 	########
 
-	REGULAR_USER_HOME_DIR=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup-schemes[] | select(.backup-type==$BACKUP_SCHEME_TYPE) | .regular-user-home-dir')
+	REGULAR_USER_HOME_DIR=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backupSchemes[] | select(.backupType==$BACKUP_SCHEME_TYPE) | .regularUserHomeDir')
 
 	# TODO: cleanup_and_validate_program_arguments
 	echo $REGULAR_USER_HOME_DIR
@@ -254,7 +257,7 @@ function import_json()
 
 	########
 
-	LOG_FILE=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backup-schemes[] | select(.backup-type==$BACKUP_SCHEME_TYPE) | .log-file')
+	LOG_FILE=$(cat "$CONFIG_FILE_FULLPATH" | jq -r --arg BACKUP_SCHEME_TYPE "$BACKUP_SCHEME_TYPE" '.backupSchemes[] | select(.backupType==$BACKUP_SCHEME_TYPE) | .logFile')
 
 	# TODO: generalise TODO: cleanup_and_validate_program_arguments
 	echo $LOG_FILE
@@ -980,7 +983,7 @@ function backup_regulars_and_dirs()
 			cp -uvPp $file "${dst_dir_current_fullpath}/${rel_filepath}"
 		elif  [ -h "${file}" ]
 		then
-			echo "Skipping symbolic link in src-files-fullpaths list..."
+			echo "Skipping symbolic link in srcFilesFullpaths list..."
 			continue
 		else
 			# failsafe

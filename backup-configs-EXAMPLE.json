@@ -2,7 +2,7 @@
   "hosts": [
     {
       "hostname": "laptop-001",
-      "dst-backup-dir-set": [
+      "dstBackupDirSet": [
         {
           "location": "external_drive",
           "mountpoint": "/media/user/storage-box",
@@ -22,7 +22,7 @@
     },
     {
       "hostname": "desktop-001",
-      "dst-backup-dir-set": [
+      "dstBackupDirSet": [
         {
           "location": "external_drive",
           "mountpoint": "/media/user/storage-box",
@@ -41,17 +41,17 @@
       ]
     }
   ],
-  "backup-schemes": [
+  "backupSchemes": [
     {
-      "backup-type": "host_configuration_file_backups",
-      "backup-description": "Host-specific files and directories, \"like\" configuration, home, Downloads and others",
-      "authorised-hostnames": [
+      "backupType": "host_configuration_file_backups",
+      "backupDescription": "Host-specific files and directories, \"like\" configuration, home, Downloads and others",
+      "authorisedHostnames": [
         "laptop-001",
         "desktop-001"
       ],
-      "regular-user": "user",
-      "regular-user-home-dir": "/home/user",
-      "src-files-fullpaths": [
+      "regularUser": "user",
+      "regularUserHomeDir": "/home/user",
+      "srcFilesFullpaths": [
         "/home/user/Downloads",
         "/etc",
         "/var/www",
@@ -63,31 +63,31 @@
         "/home/user/temp_root_cronfile",
         "/home/user/temp_user_cronfile"
       ],
-      "excluded-file-patterns": [
+      "excludedFilePatterns": [
         "/home/user/.config/Code",
         "/home/user/.config/moreCode"
       ],
-      "log-file": "/home/user/path/to/logfile"
+      "logFile": "/home/user/path/to/logfile"
     },
     {
-      "backup-type": "belt-and-braces_file_backups",
-      "backup-description": "Local Git-managed files, just in case cloud says \"no\" one day.",
-      "authorised-hostnames": [
+      "backupType": "belt-and-braces_file_backups",
+      "backupDescription": "Local Git-managed files, just in case cloud says \"no\" one day.",
+      "authorisedHostnames": [
         "laptop-001",
         "desktop-001"
       ],
-      "regular-user": "user",
-      "regular-user-home-dir": "/home/user",
-      "src-files-fullpaths": [
+      "regularUser": "user",
+      "regularUserHomeDir": "/home/user",
+      "srcFilesFullpaths": [
         "/home/user/bin/paths/to/my/projects/git-project-001",
         "/home/user/bin/paths/to/my/projects/git-project-002",
         "/home/user/bin/paths/to/my/projects/git-project-003",
         "/home/user/bin/paths/to/my/projects/git-project-004"
       ],
-      "excluded-file-patterns": [
+      "excludedFilePatterns": [
         "/.git/"
       ],
-      "log-file": "/home/user/path/to/logfile"
+      "logFile": "/home/user/path/to/logfile"
     }
   ]
 }
