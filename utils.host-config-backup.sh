@@ -911,7 +911,7 @@ function traverse() {
 			#echo "Copying file $file ..."
 			sudo cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
-		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $RUN_MODE =="batch" ]; then
+		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $RUN_MODE == "batch" ]; then
 			#echo "Copying file $file ..."
 			cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
