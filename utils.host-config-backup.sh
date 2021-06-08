@@ -99,7 +99,7 @@ function main
 
 
 	# establish the script RUN_MODE using whoami command.
-	if [ $(whoami) == "root" ]
+	if [ "$(whoami)" == "root" ]
 	then
 		declare -r RUN_MODE="batch"
 		#make_root_safe by making
@@ -113,13 +113,13 @@ function main
 	# check program dependencies and requirements
 	check_program_requirements
 
-	if [ $SHLVL -le 3 ]
+	if [ "$SHLVL" -le 3 ]
 	then
 		# Display a descriptive and informational program header:
 		display_program_header
 
 		# give user option to leave if here in error:
-		if [ $RUN_MODE == "interactive" ]
+		if [ "$RUN_MODE" == "interactive" ]
 		then
 			get_user_permission_to_proceed
 		fi
@@ -327,7 +327,7 @@ function exit_with_error()
 function check_no_of_program_args()
 {	
 	# establish that number of parameters is valid
-	if [[ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -gt $MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS ]]
+	if [[ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -gt "$MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS" ]]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
 		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
@@ -340,7 +340,7 @@ function cleanup_and_validate_program_arguments()
 {	
 	# only the regular user can call using zero parameters as in an interactive shell
 	# the root user is non-interactive, so must provide exactly one parameter
-	if [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 1 ]
+	if [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 1 ]
 	then			
 		# sanitise_program_args
 		sanitise_absolute_path_value "$PROGRAM_PARAM_1"
@@ -348,12 +348,12 @@ function cleanup_and_validate_program_arguments()
 		PROGRAM_PARAM_TRIMMED=$test_line
 		validate_absolute_path_value "$PROGRAM_PARAM_TRIMMED"			
 			
-	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "batch" ]
+	elif [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 0 ] && [ "$RUN_MODE" == "batch" ]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
 		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
 
-	elif [ $ACTUAL_NO_OF_PROGRAM_PARAMETERS -eq 0 ] && [ $RUN_MODE == "interactive" ]
+	elif [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 0 ] && [ "$RUN_MODE" == "interactive" ]
 	then
 		# this script was called by regular user, with zero parameters		
 		get_path_to_config_file # get path to the configuration file from user
@@ -408,7 +408,7 @@ function validate_absolute_path_value()
 	# this valid form test works for sanitised file paths
 	test_file_path_valid_form "$test_filepath"
 	return_code=$?
-	if [ $return_code -eq 0 ]
+	if [ "$return_code" -eq 0 ]
 	then
 		echo "The configuration filename is of VALID FORM"
 	else
@@ -419,7 +419,7 @@ function validate_absolute_path_value()
 	# if the above test returns ok, ...
 	test_file_path_access "$test_filepath"
 	return_code=$?
-	if [ $return_code -eq 0 ]
+	if [ "$return_code" -eq 0 ]
 	then
 		#echo "The configuration file is ACCESSIBLE OK"
 		CONFIG_FILE_FULLPATH="$test_filepath"
@@ -445,12 +445,12 @@ function entry_test()
 	for authorised_host in ${AUTHORISED_HOST_LIST[@]}
 	do
 		#echo "$authorised_host"
-		[ $authorised_host == $THIS_HOST ] && go=0 || go=1
+		[ "$authorised_host" == "$THIS_HOST" ] && go=0 || go=1
 		[ "$go" -eq 0 ] && echo "THE CURRENT HOST IS AUTHORISED TO USE THIS PROGRAM" && break
 	done
 
 	# if loop finished with go=1
-	[ $go -eq 1 ] && echo "UNAUTHORISED HOST. ABOUT TO EXIT..." && sleep 2 && exit 1
+	[ "$go" -eq 1 ] && echo "UNAUTHORISED HOST. ABOUT TO EXIT..." && sleep 2 && exit 1
 
 	#echo "go was set to: $go"
 
@@ -674,10 +674,10 @@ function create_last_minute_src_files()
 	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 
 	# # write roots' crontab into a file that we can backup
-	if [ $RUN_MODE == "interactive" ] # if interactive shell
+	if [ "$RUN_MODE" == "interactive" ] # if interactive shell
 	then
 		echo "$(sudo crontab -u root -l 2>/dev/null)" > "${REGULAR_USER_HOME_DIR}/temp_root_cronfile"
-	elif [ $RUN_MODE == "batch" ] # if non-interactive root shell
+	elif [ "$RUN_MODE" == "batch" ] # if non-interactive root shell
 	then		
 		echo "$(crontab -lu root 2>/dev/null)" > "${REGULAR_USER_HOME_DIR}/temp_root_cronfile"
 	else
@@ -732,7 +732,7 @@ function setup_dst_dir()
 		0)	case $mod in
 			0) 	# if array has less than NO_OF_PROPERTIES_PER_DRIVE elements, \
 				# ie - json configuration data is incomplete for this drive...
-				if [ ${#EXTERNAL_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
+				if [ "${#EXTERNAL_DRV_DATA_ARRAY[@]}" -lt "$NO_OF_PROPERTIES_PER_DRIVE" ]
 				then
 					# ...then, echo message about this
 					echo "Configuration data was incomplete for \"${EXTERNAL_DRV_DATA_ARRAY[${mod}]:-'external_drive'}\". Skipping drive setup..." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
@@ -769,7 +769,7 @@ function setup_dst_dir()
 			
 			;;				
 		1)	case $mod in
-			0) 	if [ ${#LOCAL_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
+			0) 	if [ "${#LOCAL_DRV_DATA_ARRAY[@]}" -lt "$NO_OF_PROPERTIES_PER_DRIVE" ]
 				then
 					echo "Configuration data was incomplete for \"${LOCAL_DRV_DATA_ARRAY[${mod}]:-'local_drive'}\". Skipping drive setup..." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
@@ -797,7 +797,7 @@ function setup_dst_dir()
 			
 			;;
 		2)	case $mod in
-			0) 	if [ ${#NETWORK_DRV_DATA_ARRAY[@]} -lt $NO_OF_PROPERTIES_PER_DRIVE ]
+			0) 	if [ "${#NETWORK_DRV_DATA_ARRAY[@]}" -lt "$NO_OF_PROPERTIES_PER_DRIVE" ]
 				then
 					echo "Configuration data was incomplete for \"${NETWORK_DRV_DATA_ARRAY[${mod}]:-'network_drive'}\". Skipping drive setup..." | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
 					no_of_properties_to_skip=$((NO_OF_PROPERTIES_PER_DRIVE - 1)) # 
@@ -851,7 +851,7 @@ function setup_dst_dir()
 		# test dst_dir exists and accessible
 		test_dir_path_access "$dst_dir"
 		return_code=$?
-		if [ $return_code -eq 0 ]
+		if [ "$return_code" -eq 0 ]
 		then
 			# dst_dir found and accessible ok
 			echo "That dst_dir filepath EXISTS and WORKS OK" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE
@@ -859,7 +859,7 @@ function setup_dst_dir()
 			setup_outcome=0 #success
 			break
 
-		elif [ $return_code -eq $E_REQUIRED_FILE_NOT_FOUND ]
+		elif [ "$return_code" -eq "$E_REQUIRED_FILE_NOT_FOUND" ]
 		then
 			# dst_dir did not exist
 			echo "That dst HOLDING (PARENT) DIRECTORY WAS NOT FOUND. test returned: $return_code"
@@ -905,13 +905,13 @@ function traverse() {
 		mkdir -p "$(dirname "${dst_dir_current_fullpath}/${rel_filepath}")"
 		
 		# how does the order of these tests affect performance?
-		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ $RUN_MODE == "interactive" ]; then
+		if  [ -f "${file}" ]  && [ ! -h "${file}" ] && [ "$RUN_MODE" == "interactive" ]; then
 			# preserve file metadata, never follow symlinks, update copy if necessary
 			# give some user progress feedback
 			#echo "Copying file $file ..."
 			sudo cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
-		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ $RUN_MODE == "batch" ]; then
+		elif [ -f "${file}" ] && [ ! -h "${file}" ] && [ "$RUN_MODE" == "batch" ]; then
 			#echo "Copying file $file ..."
 			cp -uvPp "${file}" "${dst_dir_current_fullpath}/${rel_filepath}"
 
@@ -946,7 +946,7 @@ function backup_regulars_and_dirs()
 	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
 
 	# 
-	if [ $RUN_MODE == "interactive" ]
+	if [ "$RUN_MODE" == "interactive" ]
 	then
 		echo "Now is a good time to tidy up the ~/Downloads directory. I'll wait here." && echo
 		echo "Press ENTER when ready to continue..." && read
@@ -970,13 +970,13 @@ function backup_regulars_and_dirs()
 		then
 			## give user some progress feedback
 			echo "Copying dir $file ..." && traverse $file
-		elif [ -f $file ] && [ $RUN_MODE == "interactive" ] && [ ! -h "${file}" ]
+		elif [ -f $file ] && [ "$RUN_MODE" == "interactive" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying top level file $file ..."
 			# preserve file metadata, never follow symlinks, update copy if necessary
 			sudo cp -uvPp $file "${dst_dir_current_fullpath}/${rel_filepath}"
-		elif [ -f $file ] && [ $RUN_MODE == "batch" ] && [ ! -h "${file}" ]
+		elif [ -f $file ] && [ "$RUN_MODE" == "batch" ] && [ ! -h "${file}" ]
 		then
 			# give some user progress feedback
 			echo "Copying top level file $file ..."
@@ -1009,7 +1009,7 @@ function change_file_ownerships()
 {
 	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 
-	if [ $RUN_MODE == "interactive" ]
+	if [ "$RUN_MODE" == "interactive" ]
 	then
 		sudo chown -R ${REGULAR_USER}:${REGULAR_USER} "${dst_dir_current_fullpath}"
 	else
@@ -1027,7 +1027,7 @@ function report_summary()
 
 	for file in "${dst_dir_current_fullpath}"/*
 	do
-		if [ -d $file ]
+		if [ -d "$file" ]
 		then
 			# assuming we're still giving ownership to reg user, else need sudo
 			du -h --summarize "$file"
