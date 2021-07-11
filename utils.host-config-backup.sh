@@ -9,6 +9,61 @@
 #: Description	:possible, else to a local synchronised directory.
 #: Options		:None
 
+
+##################################################################
+##################################################################
+# THIS STUFF IS HAPPENING BEFORE MAIN FUNCTION CALL:
+#===================================
+
+# 1. MAKE SHARED LIBRARY FUNCTIONS AVAILABLE HERE
+
+# make all those library function available to this script
+shared_bash_functions_fullpath="${SHARED_LIBRARIES_DIR}/shared-bash-functions.sh"
+
+if [ -f "$shared_bash_functions_fullpath" ]
+then
+	echo "got our library functions ok"
+else
+	echo "failed to get our functions library. Exiting now."
+	exit 1
+fi
+
+source "$shared_bash_functions_fullpath"
+
+
+# 2. MAKE SCRIPT-SPECIFIC FUNCTIONS AVAILABLE HERE
+
+# must resolve canonical_fullpath here, in order to be able to include sourced function files BEFORE we call main, and  outside of any other functions defined here, of course.
+
+# at runtime, command_fullpath may be either a symlink file or actual target source file
+command_fullpath="$0"
+command_dirname="$(dirname $0)"
+command_basename="$(basename $0)"
+
+# if a symlink file, then we need a reference to the canonical file name, as that's the location where all our required source files will be.
+# we'll test whether a symlink, then use readlink -f or realpath -e although those commands return canonical file whether symlink or not.
+# 
+canonical_fullpath="$(readlink -f $command_fullpath)"
+canonical_dirname="$(dirname $canonical_fullpath)"
+
+# this is just development debug information
+if [ -h "$command_fullpath" ]
+then
+	echo "is symlink"
+	echo "canonical_fullpath : $canonical_fullpath"
+else
+	echo "is canonical"
+	echo "canonical_fullpath : $canonical_fullpath"
+fi
+
+# included source files for json profile import functions
+#source "${canonical_dirname}/preset-profile-builder.inc.sh"
+
+
+# THAT STUFF JUST HAPPENED BEFORE MAIN FUNCTION CALL!
+##################################################################
+##################################################################
+
 ###############################################################################################
 # This program is concerned only with files that I do not routinely synchronise,
 # plus those frequently mutating files, \
@@ -140,7 +195,7 @@ function main
 		import_json
 	else
 		msg="NO CONFIG FOR YOU. Exiting now..."
-		exit_with_error "$E_REQUIRED_FILE_NOT_FOUND" "$msg" 	
+		lib10k_exit_with_error "$E_REQUIRED_FILE_NOT_FOUND" "$msg" 	
 
 	fi
 	
@@ -303,23 +358,9 @@ function check_program_requirements()
 			echo "${program_name} is NOT installed."
 			echo "program dependencies are: ${program_dependencies[@]}"
   		msg="Required program not found. Exiting now..."
-			exit_with_error "$E_REQUIRED_PROGRAM_NOT_FOUND" "$msg"
+			lib10k_exit_with_error "$E_REQUIRED_PROGRAM_NOT_FOUND" "$msg"
 		fi
 	done
-}
-
-###############################################################################################
-# exit program with non-zero exit code
-function exit_with_error()
-{	
-	error_code="$1"
-	error_message="$2"
-
-	echo "EXIT CODE: $error_code" | tee -a $LOG_FILE
-	echo "$error_message" | tee -a $LOG_FILE && echo && sleep 1
-	echo "USAGE: $(basename $0) [ABSOLUTE_FILEPATH]" | tee -a $LOG_FILE && echo && sleep 1
-
-	exit $error_code
 }
 
 ###############################################################################################
@@ -330,7 +371,7 @@ function check_no_of_program_args()
 	if [[ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -gt "$MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS" ]]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
-		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
+		lib10k_exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
 	fi
 }
 
@@ -351,7 +392,7 @@ function cleanup_and_validate_program_arguments()
 	elif [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 0 ] && [ "$RUN_MODE" == "batch" ]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
-		exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
+		lib10k_exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
 
 	elif [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 0 ] && [ "$RUN_MODE" == "interactive" ]
 	then
@@ -361,7 +402,7 @@ function cleanup_and_validate_program_arguments()
 	else
 		# ...failsafe case
 		msg="Incorrect number of command line arguments. Exiting now..."
-		exit_with_error "$E_UNEXPECTED_BRANCH_ENTERED" "$msg"
+		lib10k_exit_with_error "$E_UNEXPECTED_BRANCH_ENTERED" "$msg"
 	fi
 	
 
@@ -395,7 +436,7 @@ function get_path_to_config_file()
 	else
 		# 
 		msg="User entered a zero length argument for the configuration file. Exiting now..."
-		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
+		lib10k_exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
 	fi
 }
 ###############################################################################################
@@ -413,7 +454,7 @@ function validate_absolute_path_value()
 		echo "The configuration filename is of VALID FORM"
 	else
 		msg="The valid form test FAILED and returned: $return_code. Exiting now..."
-		exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
+		lib10k_exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
 	fi
 
 	# if the above test returns ok, ...
@@ -426,7 +467,7 @@ function validate_absolute_path_value()
 
 	else
 		msg="The configuration filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
-		exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
+		lib10k_exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
 	fi
 
 
@@ -683,7 +724,7 @@ function create_last_minute_src_files()
 	else
 		# unexpected value for RUN_MODE, so get out now
 		msg="UNKNOWN RUN MODE. Exiting now..."
-		exit_with_error "$E_UNKNOWN_RUN_MODE" "$msg"
+		lib10k_exit_with_error "$E_UNKNOWN_RUN_MODE" "$msg"
 	fi
 
 	# write regular users' crontab into a file that we can backup
@@ -825,7 +866,7 @@ function setup_dst_dir()
 			
 			;;
 		*) 	msg="for-loop in setup_dst_dir() in OUT OF BOUNDS ITERATION. Exiting now..."
-			exit_with_error "$E_OUT_OF_BOUNDS_BRANCH_ENTERED" "$msg"
+			lib10k_exit_with_error "$E_OUT_OF_BOUNDS_BRANCH_ENTERED" "$msg"
 		 	
 			;;
     	esac  
@@ -872,7 +913,7 @@ function setup_dst_dir()
 			# dst_dir found but not accessible
 			# stopping execution mid-loop because this should NEVER happen on my own system
 			msg="WEIRD, SO LET'S STOP. The dst DIRECTORY filepath ACCESS TEST FAILED and returned: $return_code. Exiting now..."
-			exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
+			lib10k_exit_with_error "$E_FILE_NOT_ACCESSIBLE" "$msg"
 		fi
 
 	done
@@ -882,7 +923,7 @@ function setup_dst_dir()
 		# failsafe...
 		# couldn't mkdirs, no dirs to make or just something else not good...
 		msg="Unexpected, UNKNOWN ERROR setting up the dst dir... Exiting now..."
-		exit_with_error "$E_UNKNOWN_ERROR" "$msg"
+		lib10k_exit_with_error "$E_UNKNOWN_ERROR" "$msg"
 	fi
 			
 	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
