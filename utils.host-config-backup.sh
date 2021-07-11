@@ -19,16 +19,22 @@
 
 # make all those library function available to this script
 shared_bash_functions_fullpath="${SHARED_LIBRARIES_DIR}/shared-bash-functions.sh"
+shared_bash_constants_fullpath="${SHARED_LIBRARIES_DIR}/shared-bash-constants.inc.sh"
 
-if [ -f "$shared_bash_functions_fullpath" ]
-then
-	echo "got our library functions ok"
-else
-	echo "failed to get our functions library. Exiting now."
-	exit 1
-fi
-
-source "$shared_bash_functions_fullpath"
+for resource in "$shared_bash_functions_fullpath" "$shared_bash_constants_fullpath"
+do
+	if [ -f "$resource" ]
+	then
+		echo "Required library resource FOUND OK at:"
+		echo "$resource"
+		source "$resource"
+	else
+		echo "Could not find the required resource at:"
+		echo "$resource"
+		echo "Check that location. Nothing to do now, except exit."
+		exit 1
+	fi
+done
 
 
 # 2. MAKE SCRIPT-SPECIFIC FUNCTIONS AVAILABLE HERE
@@ -104,20 +110,7 @@ function main
 	###############################################################################################
 	# GLOBAL VARIABLE DECLARATIONS:
 	###############################################################################################
-	
-	## EXIT CODES:
-	export E_UNEXPECTED_BRANCH_ENTERED=10
-	export E_OUT_OF_BOUNDS_BRANCH_ENTERED=11
-	export E_INCORRECT_NUMBER_OF_ARGS=12
-	export E_UNEXPECTED_ARG_VALUE=13
-	export E_REQUIRED_FILE_NOT_FOUND=20
-	export E_REQUIRED_PROGRAM_NOT_FOUND=21
-	export E_UNKNOWN_RUN_MODE=30
-	export E_UNKNOWN_EXECUTION_MODE=31
-	export E_FILE_NOT_ACCESSIBLE=40
-	export E_UNKNOWN_ERROR=32
 
-	#######################################################################
 	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
 
 	declare -i MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=1
@@ -143,15 +136,11 @@ function main
 	declare -a SRC_FILES_FULLPATHS_LIST=()
 	declare -a EXCLUDED_FILE_PATTERN_LIST=()
 	LOG_FILE=
-	
-	ABS_FILEPATH_REGEX='^(/{1}[A-Za-z0-9._~:@-]+)+/?$' # absolute file path, ASSUMING NOT HIDDEN FILE, ...
-	REL_FILEPATH_REGEX='^(/?[A-Za-z0-9._~:@-]+)+(/)?$' # relative file part-path, before trimming
 
 	test_line="" # global...
 	
 	
 	###############################################################################################
-
 
 	# establish the script RUN_MODE using whoami command.
 	if [ "$(whoami)" == "root" ]
