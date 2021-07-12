@@ -354,8 +354,12 @@ function cleanup_and_validate_program_arguments()
 	if [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 1 ]
 	then			
 		# sanitise_program_args
-		sanitise_absolute_path_value "$PROGRAM_PARAM_1"
+		#sanitise_absolute_path_value "$PROGRAM_PARAM_1"
 		#echo "test_line has the value: $test_line"
+
+		make_abs_pathname "$PROGRAM_PARAM_1"
+		echo "test_line has the value: $test_line"
+		
 		PROGRAM_PARAM_TRIMMED=$test_line
 		validate_absolute_path_value "$PROGRAM_PARAM_TRIMMED"			
 			
@@ -397,8 +401,12 @@ function get_path_to_config_file()
 
 	if [ -n "$path_to_config_file" ] 
 	then
-		sanitise_absolute_path_value "$path_to_config_file"
+		#sanitise_absolute_path_value "$path_to_config_file"
 		#echo "test_line has the value: $test_line"
+
+		make_abs_pathname "$path_to_config_file"
+		echo "test_line has the value: $test_line"
+		
 		path_to_config_file=$test_line
 
 		validate_absolute_path_value "$path_to_config_file"		
@@ -468,30 +476,6 @@ function entry_test()
 }
 
 ###############################################################################################
-# Display a program header:
-function display_program_header(){
-
-	echo
-	echo -e "		\033[33m===================================================================\033[0m";
-	echo -e "		\033[33m||   Welcome to the host-specific configuration file backuper    ||  author: adebayo10k\033[0m";  
-	echo -e "		\033[33m===================================================================\033[0m";
-	echo
-
-	# REPORT SOME SCRIPT META-DATA
-	echo "The absolute path to this script is:	$0"
-	#echo "The script directory is:		$(dirname $0)"
-	#echo "The script filename is:			$(basename $0)" && echo
-
-	echo -e "\033[33mREMEMBER TO RUN THIS PROGRAM ON EVERY HOST!\033[0m" && sleep 1 && echo
-
-	if type cowsay > /dev/null 2>&1 # false for root, if not in roots' PATH
-	then
-		cowsay "Hello, ${USER}!"
-	fi
-		
-}
-
-###############################################################################################
 # give user option to leave if here in error:
 function get_user_permission_to_proceed(){
 
@@ -508,77 +492,6 @@ function get_user_permission_to_proceed(){
 	*) 		echo "You're IN...Welcome!" && echo && sleep 1
 				;;
 	esac 
-}
-
-
-##########################################################################################################
-# keep sanitise functions separate and specialised, as we may add more to specific value types in future
-# FINAL OPERATION ON VALUE, SO GLOBAL test_line SET HERE. RENAME CONCEPTUALLY DIFFERENT test_line NAMESAKES
-function sanitise_absolute_path_value ##
-{
-	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
-
-	# sanitise values
-	# - trim leading and trailing space characters
-	# - trim trailing / for all paths
-	test_line="${1}"
-	#echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
-
-	while [[ "$test_line" == *'/' ]] ||\
-	 [[ "$test_line" == *[[:blank:]] ]] ||\
-	 [[ "$test_line" == [[:blank:]]* ]]
-	do 
-		# TRIM TRAILING AND LEADING SPACES AND TABS
-		# backstop code, as with leading spaces, config file line wouldn't even have been
-		# recognised as a value!
-		test_line=${test_line%%[[:blank:]]}
-		test_line=${test_line##[[:blank:]]}
-
-		# TRIM TRAILING / FOR ABSOLUTE PATHS:
-		test_line=${test_line%'/'}
-	done
-
-	#echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line" && echo
-
-	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
-}
-##########################################################################################################
-# basically a trim function that lets us prepare a relative path to be tagged onto an absolute one,
-# but also trims ANY string argument passed in.
-# GLOBAL test_line SET HERE...
-function sanitise_trim_relative_path()
-{
-	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
-
-	# sanitise (well the trimming part anyway) values
-	# - trim leading and trailing space characters
-	# - trim leading / for relative paths
-	# - trim trailing / for all paths
-
-	test_line="${1}"
-	#echo "test line on entering "${FUNCNAME[0]}" is: $test_line" && echo
-
-	while [[ "$test_line" == *'/' ]] ||\
-	 [[ "$test_line" == [[:blank:]]* ]] ||\
-	 [[ "$test_line" == *[[:blank:]] ]]
-
-	do 
-		# TRIM TRAILING AND LEADING SPACES AND TABS
-		test_line=${test_line%%[[:blank:]]}
-		test_line=${test_line##[[:blank:]]}
-
-		# TRIM TRAILING / FOR ABSOLUTE PATHS:
-		test_line=${test_line%'/'}
-
-	done
-
-	# FINALLY, JUST THE ONCE, TRIM LEADING / FOR RELATIVE PATHS:
-	# afer this, test_line should just be the directory name, 
-	test_line=${test_line##'/'}
-
-	#echo "test line after trim cleanups in "${FUNCNAME[0]}" is: $test_line"
-
-	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
 }
 
 ##########################################################################################################
@@ -908,8 +821,11 @@ function traverse() {
 	for file in "$1"/* # could have used ls "$1"
 	do
 	    # sanitise copy of file to make it ready for appending as a regular file
-		sanitise_trim_relative_path "${file}"
-		#echo "test_line has the value: $test_line"
+		#sanitise_trim_relative_path "${file}"
+
+		make_rel_pathname  "${file}"
+		echo "test_line has the value: $test_line"
+
 		rel_filepath=$test_line
 
 		# only happens with the first subdir (TODO: test this with a debug echo!)
@@ -969,7 +885,11 @@ function backup_regulars_and_dirs()
 	for file in ${SRC_FILES_FULLPATHS_LIST[@]}
 	do
 		# sanitise filepath to make it ready for appending to dst_dir_current_fullpath
-		sanitise_trim_relative_path "${file}"
+		#sanitise_trim_relative_path "${file}"
+
+		make_rel_pathname  "${file}"
+		echo "test_line has the value: $test_line"
+
 		#echo "test_line has the value: $test_line"
 		rel_filepath=$test_line
 
