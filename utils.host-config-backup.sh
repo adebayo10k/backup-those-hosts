@@ -113,9 +113,10 @@ function main
 
 	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
 
-	declare -i MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS=1
-	declare -ir ACTUAL_NO_OF_PROGRAM_PARAMETERS=$#
-	ALL_THE_PARAMETERS_STRING="$@"
+	declare -i max_expected_no_of_program_parameters=1
+	declare -i min_expected_no_of_program_parameters=0
+	declare -ir actual_no_of_program_parameters=$#
+	all_the_parameters_string="$@"
 
 	CONFIG_FILE_FULLPATH=
 
@@ -334,16 +335,7 @@ function import_json()
 }
 
 ###############################################################################################
-# quick check that number of program arguments is within the valid range
-function check_no_of_program_args()
-{	
-	# establish that number of parameters is valid
-	if [[ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -gt "$MAX_EXPECTED_NO_OF_PROGRAM_PARAMETERS" ]]
-	then
-		msg="Incorrect number of command line arguments. Exiting now..."
-		lib10k_exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
-	fi
-}
+
 
 ###############################################################################################
 # this program is allowed to have ... arguments
@@ -351,7 +343,7 @@ function cleanup_and_validate_program_arguments()
 {	
 	# only the regular user can call using zero parameters as in an interactive shell
 	# the root user is non-interactive, so must provide exactly one parameter
-	if [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 1 ]
+	if [ "$actual_no_of_program_parameters" -eq 1 ]
 	then			
 		# sanitise_program_args
 		#sanitise_absolute_path_value "$PROGRAM_PARAM_1"
@@ -363,12 +355,12 @@ function cleanup_and_validate_program_arguments()
 		PROGRAM_PARAM_TRIMMED=$test_line
 		validate_absolute_path_value "$PROGRAM_PARAM_TRIMMED"			
 			
-	elif [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 0 ] && [ "$RUN_MODE" == "batch" ]
+	elif [ "$actual_no_of_program_parameters" -eq 0 ] && [ "$RUN_MODE" == "batch" ]
 	then
 		msg="Incorrect number of command line arguments. Exiting now..."
 		lib10k_exit_with_error "$E_INCORRECT_NUMBER_OF_ARGS" "$msg"
 
-	elif [ "$ACTUAL_NO_OF_PROGRAM_PARAMETERS" -eq 0 ] && [ "$RUN_MODE" == "interactive" ]
+	elif [ "$actual_no_of_program_parameters" -eq 0 ] && [ "$RUN_MODE" == "interactive" ]
 	then
 		# this script was called by regular user, with zero parameters		
 		get_path_to_config_file # get path to the configuration file from user
@@ -473,121 +465,6 @@ function entry_test()
 
 	#echo "go was set to: $go"
 
-}
-
-###############################################################################################
-# give user option to leave if here in error:
-function get_user_permission_to_proceed(){
-
-	echo " Press ENTER to continue or type q to quit."
-	echo && sleep 1
-
-	# TODO: if the shell level is -gt 2, called from another script so bypass this exit option
-	read last_chance
-	case $last_chance in 
-	[qQ])	echo
-			echo "Goodbye!" && sleep 1
-			exit 0
-				;;
-	*) 		echo "You're IN...Welcome!" && echo && sleep 1
-				;;
-	esac 
-}
-
-##########################################################################################################
-# firstly, we test that the parameter we got is of the correct form for an absolute file | sanitised directory path 
-# if this test fails, there's no point doing anything further
-# 
-function test_file_path_valid_form
-{
-	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
-
-	test_result=
-	test_file_fullpath=$1
-	
-	#echo "test_file_fullpath is set to: $test_file_fullpath"
-	#echo "test_dir_fullpath is set to: $test_dir_fullpath"
-
-	if [[ $test_file_fullpath =~ $ABS_FILEPATH_REGEX ]]
-	then
-		#echo "THE FORM OF THE INCOMING PARAMETER IS OF A VALID ABSOLUTE FILE PATH"
-		test_result=0
-	else
-		echo "AN INCOMING PARAMETER WAS SET, BUT WAS NOT A MATCH FOR OUR KNOWN PATH FORM REGEX "$ABS_FILEPATH_REGEX"" && sleep 1 && echo
-		echo "Returning with a non-zero test result..."
-		test_result=1
-		return $E_UNEXPECTED_ARG_VALUE
-	fi 
-
-	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
-
-	return "$test_result"
-}
-
-###############################################################################################
-# need to test for read access to file 
-# 
-function test_file_path_access
-{
-	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
-
-	test_result=
-	test_file_fullpath=$1
-
-	#echo "test_file_fullpath is set to: $test_file_fullpath"
-
-	# test for expected file type (regular) and read permission
-	if [ -f "$test_file_fullpath" ] && [ -r "$test_file_fullpath" ]
-	then
-		# test file found and ACCESSIBLE OK
-		#echo "Test file found to be readable" && echo
-		test_result=0
-	else
-		# -> return due to failure of any of the above tests:
-		test_result=1 # just because...
-		echo "Returning from function \"${FUNCNAME[0]}\" with test result code: $E_REQUIRED_FILE_NOT_FOUND"
-		return $E_REQUIRED_FILE_NOT_FOUND
-	fi
-
-	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
-
-	return "$test_result"
-}
-
-###############################################################################################
-# generic need to test for access to a directory
-# 
-function test_dir_path_access
-{
-	#echo && echo "ENTERED INTO FUNCTION ${FUNCNAME[0]}" && echo
-
-	test_result=
-	test_dir_fullpath=$1
-
-	#echo "test_dir_fullpath is set to: $test_dir_fullpath"
-
-	if [ -d "$test_dir_fullpath" ] && cd "$test_dir_fullpath" 2>/dev/null
-	then
-		# directory file found and ACCESSIBLE
-		#echo "directory "$test_dir_fullpath" found and ACCESSED OK" && echo
-		test_result=0
-	elif [ -d "$test_dir_fullpath" ] ## 
-	then
-		# directory file found BUT NOT accessible CAN'T RECOVER FROM THIS
-		echo "directory "$test_dir_fullpath" found, BUT NOT ACCESSED OK" && echo
-		test_result=1
-		echo "Returning from function \"${FUNCNAME[0]}\" with test result code: $E_FILE_NOT_ACCESSIBLE"
-		return $E_FILE_NOT_ACCESSIBLE
-	else
-		# -> directory not found: THIS CAN BE RESOLVED BY CREATING THE DIRECTORY
-		test_result=1
-		echo "Returning from function \"${FUNCNAME[0]}\" with test result code: $E_REQUIRED_FILE_NOT_FOUND"
-		return $E_REQUIRED_FILE_NOT_FOUND
-	fi
-
-	#echo && echo "LEAVING FROM FUNCTION ${FUNCNAME[0]}" && echo
-
-	return "$test_result"
 }
 
 ##########################################################################################################
