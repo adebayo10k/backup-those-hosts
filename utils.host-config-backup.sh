@@ -119,6 +119,10 @@ function main
 
 	CONFIG_FILE_FULLPATH=
 
+	program_title=""
+	original_author=""
+	program_dependencies=(jq vi)
+
 	# declare the backup scheme for which this backup program is designed
 	declare -r BACKUP_SCHEME_TYPE="host_configuration_file_backups"
 	# declare the constant identifying the current host
@@ -155,7 +159,7 @@ function main
 	check_no_of_program_args
 
 	# check program dependencies and requirements
-	check_program_requirements
+	check_program_requirements "${program_dependencies[@]}"
 
 	if [ "$SHLVL" -le 3 ]
 	then
@@ -327,29 +331,6 @@ function import_json()
 
 	echo >> "$LOG_FILE"
 
-}
-
-##############################################################################################
-# check whether dependencies are already installed ok on this system
-function check_program_requirements() 
-{
-	# programs must all be in the PATH for both regular and root user.
-	# they're not built-ins
-	# could use their absolute paths, but these may vary with host system 
-	declare -a program_dependencies=(jq vi)
-
-	for program_name in ${program_dependencies[@]}
-	do
-	  if type $program_name >/dev/null 2>&1
-		then
-			echo "$program_name already installed OK"
-		else
-			echo "${program_name} is NOT installed."
-			echo "program dependencies are: ${program_dependencies[@]}"
-  		msg="Required program not found. Exiting now..."
-			lib10k_exit_with_error "$E_REQUIRED_PROGRAM_NOT_FOUND" "$msg"
-		fi
-	done
 }
 
 ###############################################################################################
