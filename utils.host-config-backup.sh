@@ -10,6 +10,41 @@
 #: Options		:None
 
 
+###############################################################################################
+# This program is concerned only with files that I do not routinely synchronise,
+# plus those frequently mutating files, \
+# plus those files that are DIFFERENT on each host, \
+# plus those files that are not accessible by regular user permissions. \
+# For example:
+	# configuration files
+	# HOME, Downloads... dirs
+
+# This program only needs to try to run say, once every day, as these configuration and 
+# host-specific files change less frequently.
+
+# This program is only concerned with getting current copies of these files onto external drive, or \
+# into sync-ready position on respective hosts. That's it. CRON makes this happen daily.
+
+# The program branches based on whether interactive shell or batch-mode.
+
+# on bash:
+# m h  dom mon dow   command
+# 30 12,16 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh
+
+# Needs to run as root to get access to those global configuration files
+# then adjust file ownership or not?
+
+# To add a new file path to this program, we just add it to the json configuration file.
+
+# NOTE: new cp --update strategy assumes that existing source files get modified (or not), but don't get deleted.
+# ...so need a way to get rid of last CURRENT backup of a deleted file.
+
+# host authorisation is moot because configuration file specifies host-specific configuration parameters 
+
+# NOTE: jq does not handle hyphenated filter argument quoting and faffing. Think I read something about that
+# in the docs. Better to just use camelCased JSON property names universally.
+###############################################################################################
+
 ##################################################################
 ##################################################################
 # THIS STUFF IS HAPPENING BEFORE MAIN FUNCTION CALL:
@@ -66,50 +101,24 @@ fi
 #source "${canonical_dirname}/preset-profile-builder.inc.sh"
 
 
-# THAT STUFF JUST HAPPENED BEFORE MAIN FUNCTION CALL!
+# THAT STUFF JUST HAPPENED (EXECUTED) BEFORE MAIN FUNCTION CALL!
 ##################################################################
 ##################################################################
 
-###############################################################################################
-# This program is concerned only with files that I do not routinely synchronise,
-# plus those frequently mutating files, \
-# plus those files that are DIFFERENT on each host, \
-# plus those files that are not accessible by regular user permissions. \
-# For example:
-	# configuration files
-	# HOME, Downloads... dirs
-
-# This program only needs to try to run say, once every day, as these configuration and 
-# host-specific files change less frequently.
-
-# This program is only concerned with getting current copies of these files onto external drive, or \
-# into sync-ready position on respective hosts. That's it. CRON makes this happen daily.
-
-# The program branches based on whether interactive shell or batch-mode.
-
-# on bash:
-# m h  dom mon dow   command
-# 30 12,16 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh
-
-# Needs to run as root to get access to those global configuration files
-# then adjust file ownership or not?
-
-# To add a new file path to this program, we just add it to the json configuration file.
-
-# NOTE: new cp --update strategy assumes that existing source files get modified (or not), but don't get deleted.
-# ...so need a way to get rid of last CURRENT backup of a deleted file.
-
-# host authorisation is moot because configuration file specifies host-specific configuration parameters 
-
-# NOTE: jq does not handle hyphenated filter argument quoting and faffing. Think I read something about that
-# in the docs. Better to just use camelCased JSON property names universally.
-###############################################################################################
 
 function main 
 {
-	###############################################################################################
+	#######################################################################
 	# GLOBAL VARIABLE DECLARATIONS:
-	###############################################################################################
+	#######################################################################
+
+	actual_host=$(hostname)
+	unset authorised_host_list
+	declare -a authorised_host_list=($HOST_0065 $HOST_0054 $HOST_R001 $HOST_R002)  # allow | deny
+	if [[ $(declare -a | grep 'authorised_host_list' 2>/dev/null) ]]
+	then
+		entry_test
+	fi
 
 	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
 
@@ -442,28 +451,6 @@ function validate_absolute_path_value()
 
 
 	#echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
-
-}
-
-
-##########################################################################################################
-# entry test to prevent running this program on an inappropriate host
-function entry_test()
-{
-	go=36
-	#echo "go was set to: $go"
-
-	for authorised_host in ${AUTHORISED_HOST_LIST[@]}
-	do
-		#echo "$authorised_host"
-		[ "$authorised_host" == "$THIS_HOST" ] && go=0 || go=1
-		[ "$go" -eq 0 ] && echo "THE CURRENT HOST IS AUTHORISED TO USE THIS PROGRAM" && break
-	done
-
-	# if loop finished with go=1
-	[ "$go" -eq 1 ] && echo "UNAUTHORISED HOST. ABOUT TO EXIT..." && sleep 2 && exit 1
-
-	#echo "go was set to: $go"
 
 }
 
