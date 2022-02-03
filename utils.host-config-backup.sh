@@ -4,7 +4,7 @@
 #: Author		:"Damola Adebayo"
 #: Version		:1.0
 #: Description	:use to create backup copy (ie one-way) of various system-specific files
-#: Description	:such as configuration files that aren't covered by the routine backups
+#: Description	:such as configuration files that aren't covered by my routine backups
 #: Description	:of the working directories. files are --update copied to external device if
 #: Description	:possible, else to a local synchronised directory.
 #: Options		:None
@@ -31,7 +31,7 @@
 # m h  dom mon dow   command
 # 30 12,16 * * * * /usr/bin/time -a -o "/home/dir/hcf-log" /path/to/git/repo/host-config-backup.sh
 
-# Needs to run as root to get access to those global configuration files
+# Needs to run as root to get access to those global configuration files,
 # then adjust file ownership or not?
 
 # To add a new file path to this program, we just add it to the json configuration file.
@@ -142,7 +142,7 @@ function main
 	declare -a LOCAL_DRV_DATA_ARRAY=()
 	declare -a NETWORK_DRV_DATA_ARRAY=()
 		
-	dst_dir_current_fullpath= # the first destination backup directory found to be accessible ok
+	dst_dir_current_fullpath= # the first destination backup directory that this program finds to be accessible ok
 
 	BACKUP_DESCRIPTION=
 	REGULAR_USER=
