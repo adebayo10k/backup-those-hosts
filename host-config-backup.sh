@@ -117,7 +117,8 @@ function main
 	declare -a authorised_host_list=($HOST_0065 $HOST_0054 $HOST_R001 $HOST_R002)  # allow | deny
 	if [[ $(declare -a | grep 'authorised_host_list' 2>/dev/null) ]]
 	then
-		entry_test
+	# controls where this program can be run, to avoid unforseen behaviour
+	lib10k_entry_test
 	fi
 
 	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
@@ -166,20 +167,22 @@ function main
 	fi
 
 	# count program positional parameters
-	check_no_of_program_args
+	##############################
+	# GLOBAL VARIABLE DECLARATIONS:
+	##############################
 
 	# check program dependencies and requirements
-	check_program_requirements "${program_dependencies[@]}"
+	lib10k_check_program_requirements "${program_dependencies[@]}"
 
 	if [ "$SHLVL" -le 3 ]
 	then
 		# Display a descriptive and informational program header:
-		display_program_header
+		lib10k_display_program_header
 
 		# give user option to leave if here in error:
 		if [ "$RUN_MODE" == "interactive" ]
 		then
-			get_user_permission_to_proceed
+			lib10k_get_user_permission_to_proceed
 		fi
 	fi
 
@@ -194,7 +197,7 @@ function main
 	if [ -n "$CONFIG_FILE_FULLPATH" ] # should have been received as a validated program argument
 	then
 		echo "the config is REAL"
-		# TODO: open/display_current_config_file to user (if run mode is interactive) for editing option?
+		# TODO: open/lib10k_display_current_config_file to user (if run mode is interactive) for editing option?
 		import_json
 	else
 		msg="NO CONFIG FOR YOU. Exiting now..."
@@ -358,7 +361,7 @@ function cleanup_and_validate_program_arguments()
 		#sanitise_absolute_path_value "$PROGRAM_PARAM_1"
 		#echo "test_line has the value: $test_line"
 
-		make_abs_pathname "$PROGRAM_PARAM_1"
+		lib10k_make_abs_pathname "$PROGRAM_PARAM_1"
 		echo "test_line has the value: $test_line"
 		
 		PROGRAM_PARAM_TRIMMED=$test_line
@@ -405,7 +408,7 @@ function get_path_to_config_file()
 		#sanitise_absolute_path_value "$path_to_config_file"
 		#echo "test_line has the value: $test_line"
 
-		make_abs_pathname "$path_to_config_file"
+		lib10k_make_abs_pathname "$path_to_config_file"
 		echo "test_line has the value: $test_line"
 		
 		path_to_config_file=$test_line
@@ -426,7 +429,7 @@ function validate_absolute_path_value()
 	test_filepath="$1"
 
 	# this valid form test works for sanitised file paths
-	test_file_path_valid_form "$test_filepath"
+	lib10k_test_file_path_valid_form "$test_filepath"
 	return_code=$?
 	if [ "$return_code" -eq 0 ]
 	then
@@ -437,7 +440,7 @@ function validate_absolute_path_value()
 	fi
 
 	# if the above test returns ok, ...
-	test_file_path_access "$test_filepath"
+	lib10k_test_file_path_access "$test_filepath"
 	return_code=$?
 	if [ "$return_code" -eq 0 ]
 	then
@@ -637,7 +640,7 @@ function setup_dst_dir()
 		echo >> "$LOG_FILE"
 
 		# test dst_dir exists and accessible
-		test_dir_path_access "$dst_dir"
+		lib10k_test_dir_path_access "$dst_dir"
 		return_code=$?
 		if [ "$return_code" -eq 0 ]
 		then
@@ -687,7 +690,7 @@ function traverse() {
 	    # sanitise copy of file to make it ready for appending as a regular file
 		#sanitise_trim_relative_path "${file}"
 
-		make_rel_pathname  "${file}"
+		lib10k_make_rel_pathname  "${file}"
 		echo "test_line has the value: $test_line"
 
 		rel_filepath=$test_line
@@ -751,7 +754,7 @@ function backup_regulars_and_dirs()
 		# sanitise filepath to make it ready for appending to dst_dir_current_fullpath
 		#sanitise_trim_relative_path "${file}"
 
-		make_rel_pathname  "${file}"
+		lib10k_make_rel_pathname  "${file}"
 		echo "test_line has the value: $test_line"
 
 		#echo "test_line has the value: $test_line"
