@@ -1,0 +1,1 @@
+../gpg-json-encryption-profiles/gpg-file-encrypt.sh
