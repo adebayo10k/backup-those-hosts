@@ -2,29 +2,14 @@
 #: Title		:host-config-backup.sh
 #: Date			:2021-02-06
 #: Author		:"Damola Adebayo"
-#: Version		:1.0
+#: Version		:
 #: Description	:use to create backup copy (ie one-way) of various system-specific files
 #: Description	:such as configuration files that aren't covered by my routine backups
 #: Description	:of the working directories. files are --update copied to external device if
 #: Description	:possible, else to a local synchronised directory.
 #: Options		:None
 
-
-###############################################################################################
-# This program is concerned only with files that I do not routinely synchronise,
-# plus those frequently mutating files, \
-# plus those files that are DIFFERENT on each host, \
-# plus those files that are not accessible by regular user permissions. \
-# For example:
-	# configuration files
-	# HOME, Downloads... dirs
-
-# This program only needs to try to run say, once every day, as these configuration and 
-# host-specific files change less frequently.
-
-# This program is only concerned with getting current copies of these files onto external drive, or \
-# into sync-ready position on respective hosts. That's it. CRON makes this happen daily.
-
+##############################
 # The program branches based on whether interactive shell or batch-mode.
 
 # on bash:
@@ -41,98 +26,42 @@
 
 # host authorisation is moot because configuration file specifies host-specific configuration parameters 
 
-# NOTE: jq does not handle hyphenated filter argument quoting and faffing. Think I read something about that
+# NOTE: jq does not handle hyphenated filter argument 'quoting and faffing' well. Think I read something about that
 # in the docs. Better to just use camelCased JSON property names universally.
-###############################################################################################
+##############################
 
-##################################################################
-##################################################################
-# THIS STUFF IS HAPPENING BEFORE MAIN FUNCTION CALL:
-#===================================
+## THIS STUFF IS HAPPENING BEFORE MAIN FUNCTION CALL:
 
-# 1. MAKE SHARED LIBRARY FUNCTIONS AVAILABLE HERE
+command_fullpath="$(readlink -f $0)" 
+command_basename="$(basename $command_fullpath)"
+command_dirname="$(dirname $command_fullpath)"
 
-# make all the shared library functions available to this script
-shared_bash_functions_fullpath="${SHARED_LIBRARIES_DIR}/shared-bash-functions.inc.sh"
-shared_bash_constants_fullpath="${SHARED_LIBRARIES_DIR}/shared-bash-constants.inc.sh"
-
-for resource in "$shared_bash_functions_fullpath" "$shared_bash_constants_fullpath"
+for file in "${command_dirname}/includes"/*
 do
-	if [ -f "$resource" ]
-	then
-		echo "Required library resource FOUND OK at:"
-		echo "$resource"
-		source "$resource"
-	else
-		echo "Could not find the required resource at:"
-		echo "$resource"
-		echo "Check that location. Nothing to do now, except exit."
-		exit 1
-	fi
+	source "$file"
 done
 
+## THAT STUFF JUST HAPPENED (EXECUTED) BEFORE MAIN FUNCTION CALL!
 
-# 2. MAKE SCRIPT-SPECIFIC FUNCTIONS AVAILABLE HERE
-
-# must resolve canonical_fullpath here, in order to be able to include sourced function files BEFORE we call main, and  outside of any other functions defined here, of course.
-
-# at runtime, command_fullpath may be either a symlink file or actual target source file
-command_fullpath="$0"
-command_dirname="$(dirname $0)"
-command_basename="$(basename $0)"
-
-# if a symlink file, then we need a reference to the canonical file name, as that's the location where all our required source files will be.
-# we'll test whether a symlink, then use readlink -f or realpath -e although those commands return canonical file whether symlink or not.
-# 
-canonical_fullpath="$(readlink -f $command_fullpath)"
-canonical_dirname="$(dirname $canonical_fullpath)"
-
-# this is just development debug information
-if [ -h "$command_fullpath" ]
-then
-	echo "is symlink"
-	echo "canonical_fullpath : $canonical_fullpath"
-else
-	echo "is canonical"
-	echo "canonical_fullpath : $canonical_fullpath"
-fi
-
-# included source files for json profile import functions
-#source "${canonical_dirname}/preset-profile-builder.inc.sh"
-
-
-# THAT STUFF JUST HAPPENED (EXECUTED) BEFORE MAIN FUNCTION CALL!
-##################################################################
-##################################################################
-
-
-function main 
-{
-	#######################################################################
+function main(){
+	##############################
 	# GLOBAL VARIABLE DECLARATIONS:
-	#######################################################################
-
-	actual_host=$(hostname)
-	unset authorised_host_list
-	declare -a authorised_host_list=($HOST_0065 $HOST_0054 $HOST_R001 $HOST_R002)  # allow | deny
-	if [[ $(declare -a | grep 'authorised_host_list' 2>/dev/null) ]]
-	then
-	# controls where this program can be run, to avoid unforseen behaviour
-	lib10k_entry_test
-	fi
-
-	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
+	##############################
+	program_title="host-specific configuration backups"
+	original_author="damola adebayo"
+	program_dependencies=("jq")
 
 	declare -i max_expected_no_of_program_parameters=1
 	declare -i min_expected_no_of_program_parameters=0
 	declare -ir actual_no_of_program_parameters=$#
 	all_the_parameters_string="$@"
 
-	CONFIG_FILE_FULLPATH=
+	declare -a authorised_host_list=()
+	actual_host=`hostname`
 
-	program_title=""
-	original_author=""
-	program_dependencies=(jq vi)
+	declare -r PROGRAM_PARAM_1=${1:-"not_yet_set"} ## 
+
+	CONFIG_FILE_FULLPATH=
 
 	# declare the backup scheme for which this backup program is designed
 	declare -r BACKUP_SCHEME_TYPE="host_configuration_file_backups"
@@ -155,7 +84,7 @@ function main
 	test_line="" # global...
 	
 	
-	###############################################################################################
+	##############################
 
 	# establish the script RUN_MODE using whoami command.
 	if [ "$(whoami)" == "root" ]
@@ -166,13 +95,22 @@ function main
 		declare -r RUN_MODE="interactive"
 	fi
 
-	# count program positional parameters
 	##############################
-	# GLOBAL VARIABLE DECLARATIONS:
+	# FUNCTION CALLS:
 	##############################
+	if [ ! $USER = 'root' ]
+	then
+		## Display a program header
+		lib10k_display_program_header "$program_title" "$original_author"
+		## check program dependencies and requirements
+		lib10k_check_program_requirements "${program_dependencies[@]}"
+	fi
+	
+	# check the number of parameters to this program
+	lib10k_check_no_of_program_args
 
-	# check program dependencies and requirements
-	lib10k_check_program_requirements "${program_dependencies[@]}"
+	# controls where this program can be run, to avoid unforseen behaviour
+	lib10k_entry_test
 
 	if [ "$SHLVL" -le 3 ]
 	then
@@ -187,12 +125,12 @@ function main
 	fi
 
 	# cleanup and validate, test program positional parameters
-  cleanup_and_validate_program_arguments
+  	cleanup_and_validate_program_arguments
 	
 	
-	###############################################################################################
+	##############################
 	# PROGRAM-SPECIFIC FUNCTION CALLS:	
-	###############################################################################################
+	##############################
 
 	if [ -n "$CONFIG_FILE_FULLPATH" ] # should have been received as a validated program argument
 	then
@@ -221,9 +159,9 @@ function main
 
 
 
-###############################################################################################
+##############################
 ####  FUNCTION DECLARATIONS  
-###############################################################################################
+##############################
 
 function import_json() 
 {
@@ -346,10 +284,10 @@ function import_json()
 
 }
 
-###############################################################################################
+##############################
 
 
-###############################################################################################
+##############################
 # this program is allowed to have ... arguments
 function cleanup_and_validate_program_arguments()
 {	
@@ -386,7 +324,7 @@ function cleanup_and_validate_program_arguments()
 
 }
 
-###############################################################################################
+##############################
 # here because we're a logged in, regular user with interactive shell
 # we're here to provide the absolute path to a backup configuration file
 function get_path_to_config_file()
@@ -421,7 +359,7 @@ function get_path_to_config_file()
 		lib10k_exit_with_error "$E_UNEXPECTED_ARG_VALUE" "$msg"
 	fi
 }
-###############################################################################################
+##############################
 function validate_absolute_path_value()
 {
 	#echo && echo "Entered into function ${FUNCNAME[0]}" && echo
@@ -457,7 +395,7 @@ function validate_absolute_path_value()
 
 }
 
-##########################################################################################################
+#########################################
 # write those files we'd like to backup...
 # do this until there's a better way of including them in the src_files configuration
 function create_last_minute_src_files()
@@ -483,7 +421,7 @@ function create_last_minute_src_files()
 	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo | tee -a $LOG_FILE	
 }
 
-##########################################################################################################
+#########################################
 # establish whether we're able to backup our src files to configured drives, in order of preference:
 function setup_dst_dir()
 {
@@ -734,7 +672,7 @@ function traverse() {
 	done
 }
 
-###############################################################################################
+##############################
 function backup_regulars_and_dirs()
 {
 	#echo && echo "Entered into function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo
@@ -799,7 +737,7 @@ function backup_regulars_and_dirs()
 
 }
 
-###############################################################################################
+##############################
 # chown (but not chmod) privilege level of all backup dir contents.
 # why? reg user doesn't need to access them, and we've got sudo tar if needed to prevent inadvertent linking/referencing. .
 # preserving ownership etc. might also have more fidelity, and enable any restore operations.
@@ -817,7 +755,7 @@ function change_file_ownerships()
 	#echo && echo "Leaving from function ${FUNCNAME[0]}" && echo
 }
 
-###############################################################################################
+##############################
 # if we have an interactive shell, give user a summary of dir sizes in the dst dir
 function report_summary()
 {
@@ -835,7 +773,7 @@ function report_summary()
 	#echo && echo "Leaving from function ${FUNCNAME[0]}" | tee -a $LOG_FILE && echo && echo
 }
 
-###############################################################################################
+##############################
 
 
 main "$@"; exit
