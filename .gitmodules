@@ -1,0 +1,3 @@
+[submodule "shared-functions-library"]
+	path = shared-functions-library
+	url = https://github.com/adebayo10k/shared-functions-library
