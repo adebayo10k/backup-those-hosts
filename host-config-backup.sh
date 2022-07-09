@@ -36,7 +36,7 @@ command_fullpath="$(readlink -f $0)"
 command_basename="$(basename $command_fullpath)"
 command_dirname="$(dirname $command_fullpath)"
 
-for file in "${command_dirname}/includes"/*
+for file in "${command_dirname}/shared-functions-library"/shared-bash-*
 do
 	source "$file"
 done
