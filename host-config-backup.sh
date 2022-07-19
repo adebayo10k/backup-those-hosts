@@ -120,7 +120,7 @@ function main(){
 		# give user option to leave if here in error:
 		if [ "$RUN_MODE" == "interactive" ]
 		then
-			lib10k_get_user_permission_to_proceed
+			lib10k_get_user_permission_to_proceed; [ $? -eq 0 ] || exit 0;
 		fi
 	fi
 
